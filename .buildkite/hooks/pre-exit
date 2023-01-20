@@ -1,0 +1,5 @@
+#!/bin/bash
+
+get_host_hook=$(buildkite-agent meta-data get "host" "0.0.0.0")
+echo "***** $get_host_hook *****"
+echo "***** $DEVICE_ID *****"
