@@ -1,5 +1,9 @@
 #!/bin/bash
 
-get_host_hook=$(buildkite-agent meta-data get "host" "0.0.0.0")
+get_host_hook=$(buildkite-agent meta-data get "host")
+dummy_data=$(buildkite-agent meta-data get "dummy")
+default_data=$(buildkite-agent meta-data get "dummy" --default "default data")
 echo "***** $get_host_hook *****"
+echo "***** $dummy_data *****"
+echo "***** $default_data *****"
 echo "***** $DEVICE_ID *****"
