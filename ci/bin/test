@@ -3,6 +3,6 @@ set -euo pipefail
 
 echo "Test start!!"
 export DEVICE_ID="abcd"
-buildkite-agent meta-data set "host__$BUILDKITE_PIPELINE_NAME__$BUILDKITE_JOB_ID" "$BUILDKITE_PIPELINE_NAME__$BUILDKITE_JOB_ID" --job $BUILDKITE_JOB_ID
+buildkite-agent meta-data set "host__${BUILDKITE_PIPELINE_NAME}__${BUILDKITE_JOB_ID}" "${BUILDKITE_PIPELINE_NAME}__${BUILDKITE_JOB_ID}" --job $BUILDKITE_JOB_ID
 echo "***** $DEVICE_ID"
 exit 3
