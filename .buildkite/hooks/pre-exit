@@ -1,6 +1,6 @@
 #!/bin/bash
 
-get_host_hook=$(buildkite-agent meta-data get "host")
+get_host_hook=$(buildkite-agent meta-data get "host__$BUILDKITE_PIPELINE_NAME__$BUILDKITE_JOB_ID")
 dummy_data=$(buildkite-agent meta-data get "dummy")
 default_data=$(buildkite-agent meta-data get "dummy" --default "default data")
 echo "***** $get_host_hook *****"
