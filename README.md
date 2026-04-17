@@ -43,12 +43,12 @@ To trigger a build:
 3. Paste (one per line):
    ```
    PERCY_TOKEN=<your-percy-write-token>
-   JS_MODE=js-enabled
+   JS=enabled
    ```
-   (or `JS_MODE=js-disabled`)
+   (or `JS=disabled` for JS-disabled mode)
 4. Click **Create Build**
 
-The command step validates both vars at the start and fails fast with a clear message if `PERCY_TOKEN` is missing or `JS_MODE` is anything other than `js-enabled` / `js-disabled`. Then it runs `npm ci` + `percy exec -- playwright test`.
+`JS=enabled` activates `.percy.js-enabled.yml`; `JS=disabled` activates `.percy.js-disabled.yml`. The command step validates both vars and fails fast if `PERCY_TOKEN` is missing or `JS` is anything other than `enabled` / `disabled`. Then it runs `npm ci` + `percy exec -- playwright test`.
 
 ## Files
 
