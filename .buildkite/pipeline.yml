@@ -17,7 +17,7 @@ steps:
           echo "Open 'New Build' -> Options -> Environment Variables and add JS=enabled or JS=disabled."
           exit 1
         fi
-      - "rm -rf node_modules/ .percy.yml test-results/ playwright-report/"
+      - "rm -rf .percy.yml test-results/ playwright-report/"
       - "source ~/.nvm/nvm.sh"
       - "nvm install 20"
       - "nvm use 20"
