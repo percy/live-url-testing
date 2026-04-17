@@ -14,10 +14,52 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'wikipedia-help-testing');
   });
 
+  test('wikipedia-gpt3', async function ({ page }) {
+    await page.goto('https://en.wikipedia.org/wiki/GPT-3', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'wikipedia-gpt3');
+  });
+
+  test('wikipedia-einstein', async function ({ page }) {
+    await page.goto('https://en.wikipedia.org/wiki/Albert_Einstein', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'wikipedia-einstein');
+  });
+
+  test('wikipedia-arabic', async function ({ page }) {
+    await page.goto('https://ar.wikipedia.org/wiki/%D8%A7%D9%84%D8%B5%D9%81%D8%AD%D8%A9_%D8%A7%D9%84%D8%B1%D8%A6%D9%8A%D8%B3%D9%8A%D8%A9', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'wikipedia-arabic');
+  });
+
+  test('wikipedia-japanese', async function ({ page }) {
+    await page.goto('https://ja.wikipedia.org/wiki/%E3%83%A1%E3%82%A4%E3%83%B3%E3%83%9A%E3%83%BC%E3%82%B8', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'wikipedia-japanese');
+  });
+
+  test('mdn-home', async function ({ page }) {
+    await page.goto('https://developer.mozilla.org/en-US/', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'mdn-home');
+  });
+
+  test('hackernews-home', async function ({ page }) {
+    await page.goto('https://news.ycombinator.com/', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'hackernews-home');
+  });
+
   test('amazon-home', async function ({ page }) {
     await page.goto('https://www.amazon.com/', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'amazon-home');
+  });
+
+  test('imdb-home', async function ({ page }) {
+    await page.goto('https://www.imdb.com/', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'imdb-home');
   });
 
   test('openai-home', async function ({ page }) {
@@ -32,10 +74,28 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'openai-projects');
   });
 
-  test('beta-openai', async function ({ page }) {
-    await page.goto('https://beta.openai.com/', { timeout: 90000 });
+  test('stripe-home', async function ({ page }) {
+    await page.goto('https://stripe.com/', { timeout: 90000 });
     await page.waitForTimeout(3000);
-    await percySnapshot(page, 'beta-openai');
+    await percySnapshot(page, 'stripe-home');
+  });
+
+  test('vercel-home', async function ({ page }) {
+    await page.goto('https://vercel.com/', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'vercel-home');
+  });
+
+  test('linear-home', async function ({ page }) {
+    await page.goto('https://linear.app/', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'linear-home');
+  });
+
+  test('figma-home', async function ({ page }) {
+    await page.goto('https://www.figma.com/', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'figma-home');
   });
 
   test('browserstack-home', async function ({ page }) {
@@ -56,22 +116,10 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'browserstack-pricing');
   });
 
-  test('microsoft-home', async function ({ page }) {
-    await page.goto('https://www.microsoft.com/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'microsoft-home');
-  });
-
   test('salesforce-home', async function ({ page }) {
     await page.goto('https://salesforce.com/', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'salesforce-home');
-  });
-
-  test('imdb-home', async function ({ page }) {
-    await page.goto('https://www.imdb.com/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'imdb-home');
   });
 
   test('gaana-home', async function ({ page }) {
@@ -80,22 +128,10 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'gaana-home');
   });
 
-  test('soundcloud-home', async function ({ page }) {
-    await page.goto('https://soundcloud.com/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'soundcloud-home');
-  });
-
   test('spotify-home', async function ({ page }) {
     await page.goto('https://www.spotify.com/', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'spotify-home');
-  });
-
-  test('spotify-playstore', async function ({ page }) {
-    await page.goto('https://play.google.com/store/apps/details?id=com.spotify.music&hl=en_IN&gl=US', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'spotify-playstore');
   });
 
   test('google-play', async function ({ page }) {
@@ -110,10 +146,10 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'apple-home');
   });
 
-  test('abc-xyz', async function ({ page }) {
-    await page.goto('https://abc.xyz/', { timeout: 90000 });
+  test('apple-mac', async function ({ page }) {
+    await page.goto('https://www.apple.com/mac/', { timeout: 90000 });
     await page.waitForTimeout(3000);
-    await percySnapshot(page, 'abc-xyz');
+    await percySnapshot(page, 'apple-mac');
   });
 
   test('tesla-home', async function ({ page }) {
@@ -122,22 +158,10 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'tesla-home');
   });
 
-  test('tesla-no-redirect', async function ({ page }) {
-    await page.goto('https://www.tesla.com/?redirect=no', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'tesla-no-redirect');
-  });
-
   test('tesla-modelx', async function ({ page }) {
     await page.goto('https://www.tesla.com/modelx', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'tesla-modelx');
-  });
-
-  test('bmw-home', async function ({ page }) {
-    await page.goto('https://www.bmw.com/en/index.html', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'bmw-home');
   });
 
   test('audi-india', async function ({ page }) {
@@ -170,28 +194,10 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'blueorigin-home');
   });
 
-  test('forbes-gpt3-article', async function ({ page }) {
-    await page.goto('https://www.forbes.com/sites/bernardmarr/2020/10/05/what-is-gpt-3-and-why-is-it-revolutionizing-artificial-intelligence/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'forbes-gpt3-article');
-  });
-
-  test('wikipedia-gpt3', async function ({ page }) {
-    await page.goto('https://en.wikipedia.org/wiki/GPT-3', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'wikipedia-gpt3');
-  });
-
   test('boringcompany-projects', async function ({ page }) {
     await page.goto('https://www.boringcompany.com/projects', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'boringcompany-projects');
-  });
-
-  test('apple-mac', async function ({ page }) {
-    await page.goto('https://www.apple.com/mac/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'apple-mac');
   });
 
   test('nasa-home', async function ({ page }) {
@@ -204,12 +210,6 @@ test.describe('Live URL Visual Testing', function () {
     await page.goto('https://mars.nasa.gov/all-about-mars/facts/', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'nasa-mars-facts');
-  });
-
-  test('worldometers-covid', async function ({ page }) {
-    await page.goto('https://www.worldometers.info/coronavirus/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'worldometers-covid');
   });
 
   test('worlds-longest-website', async function ({ page }) {
