@@ -17,14 +17,13 @@ steps:
           echo "Open 'New Build' -> Options -> Environment Variables and add JS=enabled or JS=disabled."
           exit 1
         fi
-        buildkite-agent meta-data set "js_mode" "js-$JS"
       - "rm -rf node_modules/ .percy.yml package-lock.json test-results/ playwright-report/"
       - "source ~/.nvm/nvm.sh"
       - "nvm install 20"
       - "nvm use 20"
       - "node --version"
-      - 'export JS_MODE=$(buildkite-agent meta-data get js_mode); echo "=== JS_MODE: $JS_MODE ==="'
-      - 'export JS_MODE=$(buildkite-agent meta-data get js_mode); cp .percy.${JS_MODE}.yml .percy.yml'
+      - 'echo "=== JS: $JS (mode: js-$JS) ==="'
+      - 'cp ".percy.js-$JS.yml" .percy.yml'
       - 'echo "=== Active config ==="; cat .percy.yml'
       - "npm ci"
       - "npx percy --version"
