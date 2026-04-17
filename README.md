@@ -34,7 +34,20 @@ The `test-web:js-*` scripts copy the matching `.percy.js-<mode>.yml` to `.percy.
 
 ## Buildkite
 
-The pipeline definition lives in [`.buildkite/pipeline.yml`](./.buildkite/pipeline.yml). First step collects `PERCY_TOKEN` and `JS_MODE` via a block step, then runs `npm ci` + `percy exec -- playwright test`.
+The pipeline definition lives in [`.buildkite/pipeline.yml`](./.buildkite/pipeline.yml).
+
+To trigger a build:
+
+1. Open the pipeline in Buildkite and click **New Build**
+2. Click the **Options** dropdown in the modal and expand **Environment Variables**
+3. Paste:
+   ```
+   PERCY_TOKEN=<your-percy-write-token>
+   JS_MODE=js-enabled       # or js-disabled
+   ```
+4. Click **Create Build**
+
+The command step validates both vars at the start and fails fast with a clear message if either is missing or `JS_MODE` is mistyped. Then it runs `npm ci` + `percy exec -- playwright test`.
 
 ## Files
 
