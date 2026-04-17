@@ -98,6 +98,18 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'browserstack-home');
   });
 
+  test('browserstack-percy', async function ({ page }) {
+    await page.goto('https://www.browserstack.com/percy', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'browserstack-percy');
+  });
+
+  test('browserstack-pricing', async function ({ page }) {
+    await page.goto('https://www.browserstack.com/pricing', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'browserstack-pricing');
+  });
+
   test('salesforce-home', async function ({ page }) {
     await page.goto('https://salesforce.com/', { timeout: 90000 });
     await page.waitForTimeout(3000);
@@ -116,12 +128,6 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'apple-home');
   });
 
-  test('apple-mac', async function ({ page }) {
-    await page.goto('https://www.apple.com/mac/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'apple-mac');
-  });
-
   test('tesla-home', async function ({ page }) {
     await page.goto('https://www.tesla.com/', { timeout: 90000 });
     await page.waitForTimeout(3000);
@@ -132,12 +138,6 @@ test.describe('Live URL Visual Testing', function () {
     await page.goto('https://www.porsche.com/usa/', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'porsche-usa');
-  });
-
-  test('audi-global', async function ({ page }) {
-    await page.goto('https://www.audi.com/en.html', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'audi-global');
   });
 
   test('spacex-home', async function ({ page }) {
