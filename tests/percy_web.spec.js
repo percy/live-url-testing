@@ -14,40 +14,40 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'wikipedia-help-testing');
   });
 
-  test('wikipedia-gpt3', async function ({ page }) {
-    await page.goto('https://en.wikipedia.org/wiki/GPT-3', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'wikipedia-gpt3');
-  });
-
   test('wikipedia-einstein', async function ({ page }) {
     await page.goto('https://en.wikipedia.org/wiki/Albert_Einstein', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'wikipedia-einstein');
   });
 
-  test('wikipedia-arabic', async function ({ page }) {
-    await page.goto('https://ar.wikipedia.org/wiki/%D8%A7%D9%84%D8%B5%D9%81%D8%AD%D8%A9_%D8%A7%D9%84%D8%B1%D8%A6%D9%8A%D8%B3%D9%8A%D8%A9', { timeout: 90000 });
+  test('wikipedia-arabic-article', async function ({ page }) {
+    await page.goto('https://ar.wikipedia.org/wiki/%D9%85%D8%AD%D9%85%D8%AF', { timeout: 90000 });
     await page.waitForTimeout(3000);
-    await percySnapshot(page, 'wikipedia-arabic');
+    await percySnapshot(page, 'wikipedia-arabic-article');
   });
 
-  test('wikipedia-japanese', async function ({ page }) {
-    await page.goto('https://ja.wikipedia.org/wiki/%E3%83%A1%E3%82%A4%E3%83%B3%E3%83%9A%E3%83%BC%E3%82%B8', { timeout: 90000 });
+  test('wikipedia-japanese-article', async function ({ page }) {
+    await page.goto('https://ja.wikipedia.org/wiki/%E6%97%A5%E6%9C%AC', { timeout: 90000 });
     await page.waitForTimeout(3000);
-    await percySnapshot(page, 'wikipedia-japanese');
+    await percySnapshot(page, 'wikipedia-japanese-article');
   });
 
-  test('mdn-home', async function ({ page }) {
-    await page.goto('https://developer.mozilla.org/en-US/', { timeout: 90000 });
+  test('mdn-css-grid', async function ({ page }) {
+    await page.goto('https://developer.mozilla.org/en-US/docs/Web/CSS/grid', { timeout: 90000 });
     await page.waitForTimeout(3000);
-    await percySnapshot(page, 'mdn-home');
+    await percySnapshot(page, 'mdn-css-grid');
   });
 
-  test('hackernews-home', async function ({ page }) {
-    await page.goto('https://news.ycombinator.com/', { timeout: 90000 });
+  test('w3c-css', async function ({ page }) {
+    await page.goto('https://www.w3.org/Style/CSS/', { timeout: 90000 });
     await page.waitForTimeout(3000);
-    await percySnapshot(page, 'hackernews-home');
+    await percySnapshot(page, 'w3c-css');
+  });
+
+  test('httpbin-html', async function ({ page }) {
+    await page.goto('https://httpbin.org/html', { timeout: 90000 });
+    await page.waitForTimeout(3000);
+    await percySnapshot(page, 'httpbin-html');
   });
 
   test('amazon-home', async function ({ page }) {
@@ -66,12 +66,6 @@ test.describe('Live URL Visual Testing', function () {
     await page.goto('https://openai.com/', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'openai-home');
-  });
-
-  test('openai-projects', async function ({ page }) {
-    await page.goto('https://openai.com/projects/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'openai-projects');
   });
 
   test('stripe-home', async function ({ page }) {
@@ -104,34 +98,10 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'browserstack-home');
   });
 
-  test('browserstack-percy', async function ({ page }) {
-    await page.goto('https://www.browserstack.com/percy', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'browserstack-percy');
-  });
-
-  test('browserstack-pricing', async function ({ page }) {
-    await page.goto('https://www.browserstack.com/pricing', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'browserstack-pricing');
-  });
-
   test('salesforce-home', async function ({ page }) {
     await page.goto('https://salesforce.com/', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'salesforce-home');
-  });
-
-  test('gaana-home', async function ({ page }) {
-    await page.goto('https://gaana.com/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'gaana-home');
-  });
-
-  test('spotify-home', async function ({ page }) {
-    await page.goto('https://www.spotify.com/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'spotify-home');
   });
 
   test('google-play', async function ({ page }) {
@@ -158,16 +128,10 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'tesla-home');
   });
 
-  test('tesla-modelx', async function ({ page }) {
-    await page.goto('https://www.tesla.com/modelx', { timeout: 90000 });
+  test('porsche-usa', async function ({ page }) {
+    await page.goto('https://www.porsche.com/usa/', { timeout: 90000 });
     await page.waitForTimeout(3000);
-    await percySnapshot(page, 'tesla-modelx');
-  });
-
-  test('audi-india', async function ({ page }) {
-    await page.goto('https://www.audi.in/in/web/en.html', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'audi-india');
+    await percySnapshot(page, 'porsche-usa');
   });
 
   test('audi-global', async function ({ page }) {
@@ -176,28 +140,10 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'audi-global');
   });
 
-  test('porsche-usa', async function ({ page }) {
-    await page.goto('https://www.porsche.com/usa/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'porsche-usa');
-  });
-
   test('spacex-home', async function ({ page }) {
     await page.goto('https://www.spacex.com/', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'spacex-home');
-  });
-
-  test('blueorigin-home', async function ({ page }) {
-    await page.goto('https://www.blueorigin.com/', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'blueorigin-home');
-  });
-
-  test('boringcompany-projects', async function ({ page }) {
-    await page.goto('https://www.boringcompany.com/projects', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'boringcompany-projects');
   });
 
   test('nasa-home', async function ({ page }) {
@@ -210,17 +156,5 @@ test.describe('Live URL Visual Testing', function () {
     await page.goto('https://mars.nasa.gov/all-about-mars/facts/', { timeout: 90000 });
     await page.waitForTimeout(3000);
     await percySnapshot(page, 'nasa-mars-facts');
-  });
-
-  test('worlds-longest-website', async function ({ page }) {
-    await page.goto('http://www.worldslongestwebsite.com', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'worlds-longest-website');
-  });
-
-  test('worlds-highest-website', async function ({ page }) {
-    await page.goto('https://worlds-highest-website.com', { timeout: 90000 });
-    await page.waitForTimeout(3000);
-    await percySnapshot(page, 'worlds-highest-website');
   });
 });
