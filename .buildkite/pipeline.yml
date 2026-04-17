@@ -31,8 +31,9 @@ steps:
       - "node --version"
       - "export PERCY_TOKEN=$(buildkite-agent meta-data get percy_token)"
       - "export JS_MODE=$(buildkite-agent meta-data get js_mode)"
-      - 'echo "Running live URL tests in mode: $JS_MODE"'
+      - 'echo "=== JS_MODE: $JS_MODE ==="'
       - "cp .percy.${JS_MODE}.yml .percy.yml"
+      - 'echo "=== Active config ==="; cat .percy.yml'
       - "npm ci"
       - "npx percy --version"
       - "npx playwright install --with-deps chromium"
