@@ -1,0 +1,19 @@
+{
+  "private": true,
+  "name": "percy-live-url-test",
+  "version": "1.0.0",
+  "description": "Percy live URL visual regression tests for browser-upgrade validation. Run via Buildkite pipeline percy/live-url-test.",
+  "scripts": {
+    "test-web": "percy exec -- playwright test tests/percy_web.spec.js --reporter=dot",
+    "test-web:js-enabled": "cp .percy.js-enabled.yml .percy.yml && npm run test-web",
+    "test-web:js-disabled": "cp .percy.js-disabled.yml .percy.yml && npm run test-web"
+  },
+  "devDependencies": {
+    "@percy/cli": "^1.30.7",
+    "@percy/playwright": "^1.0.9",
+    "@playwright/test": "^1.48.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
