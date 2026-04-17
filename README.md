@@ -39,14 +39,16 @@ The pipeline definition lives in [`.buildkite/pipeline.yml`](./.buildkite/pipeli
 To trigger a build:
 
 1. Open the pipeline in Buildkite and click **New Build**
-2. Leave Message blank, keep Branch = `main`, click **Create Build**
-3. The build starts and pauses at the **Live URL Test Inputs** block step — click **Unblock**
-4. Fill the form:
-   - **PERCY_TOKEN** — paste the Percy write token
-   - **JS_MODE** — pick `js-enabled` or `js-disabled` from the dropdown
-5. Click **Unblock** — the command step runs `npm ci` + `percy exec -- playwright test`.
+2. Click the **Options** dropdown in the modal and expand **Environment Variables**
+3. Paste (one per line):
+   ```
+   PERCY_TOKEN=<your-percy-write-token>
+   JS_MODE=js-enabled
+   ```
+   (or `JS_MODE=js-disabled`)
+4. Click **Create Build**
 
-Both fields are required. The dropdown prevents `JS_MODE` typos.
+The command step validates both vars at the start and fails fast with a clear message if `PERCY_TOKEN` is missing or `JS_MODE` is anything other than `js-enabled` / `js-disabled`. Then it runs `npm ci` + `percy exec -- playwright test`.
 
 ## Files
 
