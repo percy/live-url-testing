@@ -2,21 +2,30 @@ env:
   PERCY_BRANCH: "master"
 
 steps:
+  - block: "Live URL Test Inputs"
+    prompt: "Paste the Percy token and pick the JS mode for this run."
+    fields:
+      - text: "PERCY_TOKEN"
+        key: "percy_token"
+        required: true
+        hint: "Percy write token of the target project."
+      - select: "JS_MODE"
+        key: "js_mode"
+        required: true
+        default: "js-disabled"
+        hint: "Must match the project that owns the PERCY_TOKEN above."
+        options:
+          - label: "JS Enabled"
+            value: "js-enabled"
+          - label: "JS Disabled"
+            value: "js-disabled"
+
   - label: "Live URL Test :chromium:"
     agents:
       os: "linux"
     commands:
-      - |
-        if [ -z "$PERCY_TOKEN" ]; then
-          echo "ERROR: PERCY_TOKEN is not set. Open 'New Build' -> Options -> Environment Variables and add PERCY_TOKEN=<your-percy-write-token>."
-          exit 1
-        fi
-      - |
-        if [ "$JS_MODE" != "js-enabled" ] && [ "$JS_MODE" != "js-disabled" ]; then
-          echo "ERROR: JS_MODE must be 'js-enabled' or 'js-disabled', got: '$JS_MODE'"
-          echo "Open 'New Build' -> Options -> Environment Variables and add JS_MODE=js-enabled or JS_MODE=js-disabled."
-          exit 1
-        fi
+      - "export PERCY_TOKEN=$(buildkite-agent meta-data get percy_token)"
+      - "export JS_MODE=$(buildkite-agent meta-data get js_mode)"
       - "rm -rf node_modules/ .percy.yml package-lock.json test-results/ playwright-report/"
       - "source ~/.nvm/nvm.sh"
       - "nvm install 20"
