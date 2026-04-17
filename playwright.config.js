@@ -4,9 +4,9 @@ module.exports = defineConfig({
   testDir: 'tests',
   timeout: 120000,
   expect: { timeout: 10000 },
-  fullyParallel: false,
+  fullyParallel: true,
   retries: 0,
-  workers: 1,
+  workers: 4,
   reporter: [['dot']],
   use: {
     navigationTimeout: 90000,

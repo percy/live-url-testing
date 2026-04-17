@@ -1,5 +1,5 @@
 env:
-  PERCY_BRANCH: "master"
+  PERCY_BRANCH: "staging"
 
 steps:
   - label: "Live URL Test :chromium:"
