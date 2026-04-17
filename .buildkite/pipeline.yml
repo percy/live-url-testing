@@ -1,0 +1,39 @@
+env:
+  PERCY_BRANCH: "master"
+
+steps:
+  - block: "Live URL Test Inputs"
+    prompt: "Provide the Percy token and select the JS mode for this run."
+    fields:
+      - text: "PERCY_TOKEN"
+        key: "percy_token"
+        required: true
+        hint: "Paste the Percy write token of the target project (js-enabled or js-disabled)."
+      - select: "JS_MODE"
+        key: "js_mode"
+        required: true
+        default: "js-disabled"
+        hint: "Pick the JS mode. Must match the project that owns the PERCY_TOKEN above."
+        options:
+          - label: "JS Enabled"
+            value: "js-enabled"
+          - label: "JS Disabled"
+            value: "js-disabled"
+
+  - label: "Live URL Test :chromium:"
+    agents:
+      os: "linux"
+    commands:
+      - "rm -rf node_modules/ .percy.yml package-lock.json test-results/ playwright-report/"
+      - "source ~/.nvm/nvm.sh"
+      - "nvm install 20"
+      - "nvm use 20"
+      - "node --version"
+      - "export PERCY_TOKEN=$(buildkite-agent meta-data get percy_token)"
+      - "export JS_MODE=$(buildkite-agent meta-data get js_mode)"
+      - 'echo "Running live URL tests in mode: $JS_MODE"'
+      - "cp .percy.${JS_MODE}.yml .percy.yml"
+      - "npm ci"
+      - "npx percy --version"
+      - "npx playwright install --with-deps chromium"
+      - "npx percy exec -- npx playwright test tests/percy_web.spec.js --reporter=dot"
