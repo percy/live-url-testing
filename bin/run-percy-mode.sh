@@ -34,13 +34,11 @@ PHASE="${2:?PHASE arg required (baseline|comparison)}"
 UPPER_JS=$(echo "$JS" | tr '[:lower:]' '[:upper:]')
 UPPER_PHASE=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
 
-WRITE_TOKEN_KEY="PERCY_TOKEN_JS_${UPPER_JS}"
-READ_TOKEN_KEY="PERCY_READ_TOKEN_JS_${UPPER_JS}"
+TOKEN_KEY="PERCY_TOKEN_JS_${UPPER_JS}"
 
-# write_only token -> used by percy exec to upload snapshots
-export PERCY_TOKEN=$(buildkite-agent meta-data get "$WRITE_TOKEN_KEY")
-# read_only token -> used by fetch-diffs.js (write_only cannot GET /snapshots)
-READ_TOKEN=$(buildkite-agent meta-data get "$READ_TOKEN_KEY")
+# Full-access (master) token — used by both `percy exec` for upload and
+# `fetch-diffs.js` for GET /snapshots.
+export PERCY_TOKEN=$(buildkite-agent meta-data get "$TOKEN_KEY")
 
 CYCLE_ID=$(buildkite-agent meta-data get CYCLE_ID)
 export PERCY_BRANCH="cycle-${CYCLE_ID}"
@@ -70,8 +68,7 @@ if [ -n "${PERCY_BUILD_ID:-}" ]; then
 
   echo ""
   echo "=== Per-snapshot diffs for build ${PERCY_BUILD_ID} (JS=${JS}, ${PHASE}) ==="
-  # Use read_only token — write_only cannot GET /snapshots (returns 403 forbidden).
-  node bin/fetch-diffs.js --build-id="$PERCY_BUILD_ID" --token="$READ_TOKEN" || echo "WARN: fetch-diffs exited non-zero"
+  node bin/fetch-diffs.js --build-id="$PERCY_BUILD_ID" --token="$PERCY_TOKEN" || echo "WARN: fetch-diffs exited non-zero"
 else
   echo "WARN: could not extract Percy build ID from ${LOG}"
   echo "--- last 20 lines of ${LOG} for debugging: ---"

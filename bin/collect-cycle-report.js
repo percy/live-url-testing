@@ -31,7 +31,8 @@ function classify(s) {
 
 async function collectMode(mode) {
   const suffix = mode.toUpperCase();
-  const readToken = meta(`PERCY_READ_TOKEN_JS_${suffix}`);
+  // master token — can read builds/snapshots for its own project.
+  const readToken = meta(`PERCY_TOKEN_JS_${suffix}`);
   const projectId = meta(`PERCY_PROJECT_ID_JS_${suffix}`);
   const projectSlug = meta(`PERCY_PROJECT_SLUG_JS_${suffix}`);
   const cycleId = meta('CYCLE_ID');

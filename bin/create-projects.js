@@ -84,8 +84,10 @@ async function createOne({ userToken, teamId, name }) {
   const project = await createProject({ userToken, teamId, name, type: 'web' });
   console.error(`[create-projects]   id=${project.id} slug=${project.slug}`);
   const tokens = await getProjectTokens({ userToken, teamId, projectSlug: project.fullSlug.split('/').slice(1).join('/') });
-  if (!tokens.write_only) throw new Error(`no write_only token returned for ${name}`);
-  return { ...project, writeToken: tokens.write_only, readToken: tokens.read_only };
+  // master = full-access; can upload snapshots AND read builds/snapshots.
+  // One token used by both `percy exec` (upload) and fetch-diffs (read).
+  if (!tokens.master) throw new Error(`no master token returned for ${name}`);
+  return { ...project, token: tokens.master };
 }
 
 async function main() {
@@ -104,10 +106,8 @@ async function main() {
     name: `auto-live-url-${cycleId}-js-disabled`,
   });
 
-  setMetaOrPrint('PERCY_TOKEN_JS_ENABLED', jsEnabled.writeToken);
-  setMetaOrPrint('PERCY_TOKEN_JS_DISABLED', jsDisabled.writeToken);
-  setMetaOrPrint('PERCY_READ_TOKEN_JS_ENABLED', jsEnabled.readToken);
-  setMetaOrPrint('PERCY_READ_TOKEN_JS_DISABLED', jsDisabled.readToken);
+  setMetaOrPrint('PERCY_TOKEN_JS_ENABLED', jsEnabled.token);
+  setMetaOrPrint('PERCY_TOKEN_JS_DISABLED', jsDisabled.token);
   setMetaOrPrint('PERCY_PROJECT_ID_JS_ENABLED', jsEnabled.id);
   setMetaOrPrint('PERCY_PROJECT_ID_JS_DISABLED', jsDisabled.id);
   setMetaOrPrint('PERCY_PROJECT_SLUG_JS_ENABLED', jsEnabled.fullSlug);
