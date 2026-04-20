@@ -80,6 +80,15 @@ if [ -n "${PERCY_BUILD_ID:-}" ]; then
   buildkite-agent meta-data set "PERCY_BUILD_ID_${UPPER_JS}_${UPPER_PHASE}" "$PERCY_BUILD_ID"
 
   echo ""
+  echo "=== Waiting for Percy build ${PERCY_BUILD_ID} to finalize (server-side processing) ==="
+  # Without this, the BK step exits as soon as `percy exec` finishes the
+  # upload — but Percy's rendering + diff pipeline is still running. The
+  # next BK step (comparison, for baseline; report, for comparison) would
+  # race against an unfinalized build. Poll until state=finished, then
+  # sleep 30s for safety.
+  node bin/wait-for-build.js --build-id="$PERCY_BUILD_ID" --token="$PERCY_TOKEN"
+
+  echo ""
   echo "=== Per-snapshot diffs for build ${PERCY_BUILD_ID} (JS=${JS}, ${PHASE}) ==="
   node bin/fetch-diffs.js --build-id="$PERCY_BUILD_ID" --token="$PERCY_TOKEN" || echo "WARN: fetch-diffs exited non-zero"
 else
