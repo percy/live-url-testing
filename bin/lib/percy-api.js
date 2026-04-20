@@ -1,13 +1,13 @@
 // Thin Percy REST API wrapper. Uses Node 20 built-in fetch. No external deps.
 //
 // Auth model:
-//   - USER_TOKEN (org-level): creates projects, lists tokens
-//   - per-project write_only token: used by Percy CLI to upload snapshots (env PERCY_TOKEN)
-//   - per-project read_only / master token: reads builds + snapshots for diff extraction
+//   - USER_TOKEN (org-level): creates projects, lists tokens, manages browser targets
+//   - per-project master (full-access) token: used by Percy CLI to upload snapshots
+//     AND for reading builds/snapshots for diff extraction. One token per project.
 //
 // Env:
 //   PERCY_BASE_URL   default: https://percy.io
-//   PERCY_USER_TOKEN org-level token (required for create/list-tokens)
+//   PERCY_USER_TOKEN org-level token (required for create/list-tokens/browser-targets)
 
 'use strict';
 
@@ -65,10 +65,10 @@ async function getProjectTokens({ userToken, teamId, projectSlug }) {
 
 // --- Builds & snapshots ---
 
-async function listBuildsForProject({ readToken, projectId, branch, limit = 10 }) {
+async function listBuildsForProject({ token, projectId, branch, limit = 10 }) {
   const query = { 'filter[project_id]': projectId, 'page[limit]': String(limit) };
   if (branch) query['filter[branch]'] = branch;
-  const r = await request('GET', `/api/v1/builds`, { token: readToken, query });
+  const r = await request('GET', `/api/v1/builds`, { token, query });
   return r.data.map((b) => ({
     id: b.id,
     state: b.attributes.state,
@@ -82,9 +82,9 @@ async function listBuildsForProject({ readToken, projectId, branch, limit = 10 }
   }));
 }
 
-async function listSnapshotsForBuild({ readToken, buildId, limit = 500 }) {
+async function listSnapshotsForBuild({ token, buildId, limit = 500 }) {
   const query = { build_id: buildId, 'page[limit]': String(limit) };
-  const r = await request('GET', `/api/v1/snapshots`, { token: readToken, query });
+  const r = await request('GET', `/api/v1/snapshots`, { token, query });
   return r.data.map((s) => {
     const a = s.attributes;
     const comparisons = (s.relationships?.comparisons?.data || []).map((c) => c.id);
@@ -100,8 +100,8 @@ async function listSnapshotsForBuild({ readToken, buildId, limit = 500 }) {
   });
 }
 
-async function getComparison({ readToken, comparisonId }) {
-  const r = await request('GET', `/api/v1/comparisons/${comparisonId}`, { token: readToken });
+async function getComparison({ token, comparisonId }) {
+  const r = await request('GET', `/api/v1/comparisons/${comparisonId}`, { token });
   const a = r.data.attributes;
   return {
     id: r.data.id,

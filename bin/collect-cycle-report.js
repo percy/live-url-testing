@@ -2,14 +2,16 @@
 // Read per-cycle meta-data, locate comparison builds on each project, fetch per-test
 // diffs, merge into one report, print to stdout + write diff-report.json/md + annotate BK.
 //
-// Runs as the final step of .buildkite/cycle.yml. Meta-data expected:
-//   CYCLE_ID                          set by Step 1
-//   PERCY_READ_TOKEN_JS_ENABLED       set by create-projects.js
-//   PERCY_READ_TOKEN_JS_DISABLED
+// Runs as the final step of the cycle pipeline. Meta-data expected:
+//   CYCLE_ID                          set by Step 1 (used for report title only)
+//   PERCY_TOKEN_JS_ENABLED            full-access token (set by create-projects.js)
+//   PERCY_TOKEN_JS_DISABLED
 //   PERCY_PROJECT_ID_JS_ENABLED
 //   PERCY_PROJECT_ID_JS_DISABLED
 //   PERCY_PROJECT_SLUG_JS_ENABLED
 //   PERCY_PROJECT_SLUG_JS_DISABLED
+//
+// Comparison builds live on PERCY_BRANCH=staging (baselines live on master).
 
 'use strict';
 
@@ -29,27 +31,27 @@ function classify(s) {
   return 'other';
 }
 
+const COMPARISON_BRANCH = 'staging';
+
 async function collectMode(mode) {
   const suffix = mode.toUpperCase();
-  // master token — can read builds/snapshots for its own project.
-  const readToken = meta(`PERCY_TOKEN_JS_${suffix}`);
+  // Full-access (master) token — can read builds/snapshots for its own project.
+  const token = meta(`PERCY_TOKEN_JS_${suffix}`);
   const projectId = meta(`PERCY_PROJECT_ID_JS_${suffix}`);
   const projectSlug = meta(`PERCY_PROJECT_SLUG_JS_${suffix}`);
-  const cycleId = meta('CYCLE_ID');
-  const cycleBranch = `cycle-${cycleId}`;
 
-  // Latest build on the cycle branch = the comparison run (2nd of 2 on this branch).
+  // Comparison builds run on `staging`; baselines on `master`. Grab the latest staging build.
   const builds = await listBuildsForProject({
-    readToken,
+    token,
     projectId,
-    branch: cycleBranch,
+    branch: COMPARISON_BRANCH,
     limit: 1,
   });
   if (!builds.length) {
-    return { mode, empty: true, projectSlug, reason: `no build on branch ${cycleBranch}` };
+    return { mode, empty: true, projectSlug, reason: `no build on branch ${COMPARISON_BRANCH}` };
   }
   const build = builds[0];
-  const snapshots = await listSnapshotsForBuild({ readToken, buildId: build.id });
+  const snapshots = await listSnapshotsForBuild({ token, buildId: build.id });
   const tests = snapshots.map((s) => ({
     name: s.name,
     status: classify(s),
