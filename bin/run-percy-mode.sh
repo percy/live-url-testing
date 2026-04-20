@@ -19,15 +19,29 @@
 
 set -euo pipefail
 
+# Ensure Node 20 is present on whichever BK agent picked up this step.
+# `nvm install` is idempotent: installs if missing, no-op if present, always activates.
+if [ -s "${HOME}/.nvm/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  source "${HOME}/.nvm/nvm.sh"
+  nvm install 20
+  nvm use 20
+fi
+
 JS="${1:?JS arg required (enabled|disabled)}"
 PHASE="${2:?PHASE arg required (baseline|comparison)}"
 
 UPPER_JS=$(echo "$JS" | tr '[:lower:]' '[:upper:]')
 UPPER_PHASE=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
 
-TOKEN_KEY="PERCY_TOKEN_JS_${UPPER_JS}"
+WRITE_TOKEN_KEY="PERCY_TOKEN_JS_${UPPER_JS}"
+READ_TOKEN_KEY="PERCY_READ_TOKEN_JS_${UPPER_JS}"
 
-export PERCY_TOKEN=$(buildkite-agent meta-data get "$TOKEN_KEY")
+# write_only token -> used by percy exec to upload snapshots
+export PERCY_TOKEN=$(buildkite-agent meta-data get "$WRITE_TOKEN_KEY")
+# read_only token -> used by fetch-diffs.js (write_only cannot GET /snapshots)
+READ_TOKEN=$(buildkite-agent meta-data get "$READ_TOKEN_KEY")
+
 CYCLE_ID=$(buildkite-agent meta-data get CYCLE_ID)
 export PERCY_BRANCH="cycle-${CYCLE_ID}"
 
@@ -56,7 +70,8 @@ if [ -n "${PERCY_BUILD_ID:-}" ]; then
 
   echo ""
   echo "=== Per-snapshot diffs for build ${PERCY_BUILD_ID} (JS=${JS}, ${PHASE}) ==="
-  node bin/fetch-diffs.js --build-id="$PERCY_BUILD_ID" --token="$PERCY_TOKEN" || echo "WARN: fetch-diffs exited non-zero"
+  # Use read_only token — write_only cannot GET /snapshots (returns 403 forbidden).
+  node bin/fetch-diffs.js --build-id="$PERCY_BUILD_ID" --token="$READ_TOKEN" || echo "WARN: fetch-diffs exited non-zero"
 else
   echo "WARN: could not extract Percy build ID from ${LOG}"
   echo "--- last 20 lines of ${LOG} for debugging: ---"

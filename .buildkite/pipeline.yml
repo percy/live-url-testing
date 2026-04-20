@@ -12,6 +12,10 @@
 #              ships an automation endpoint. Re-insert a `block:` step between
 #              step 2 and 3 to re-enable the manual pause.
 #   Step 4  Fetch per-snapshot diffs, write diff-report artifact, annotate BK
+#
+# Every step delegates to a bin/*.sh script that handles its own Node setup
+# (nvm install 20) so BK YAML stays minimal and independent of agent-pre-cached
+# Node versions.
 
 env:
   PROFILE: "prod"
@@ -21,9 +25,7 @@ steps:
     key: "setup"
     agents:
       os: "linux"
-    commands:
-      - "source ~/.nvm/nvm.sh && nvm install 20 && nvm use 20"
-      - "bash bin/cycle-step1.sh"
+    command: "bash bin/cycle-step1.sh"
 
   - wait
 
@@ -34,15 +36,11 @@ steps:
       - label: ":chromium: Baseline JS=enabled"
         agents:
           os: "linux"
-        commands:
-          - "source ~/.nvm/nvm.sh && nvm use 20"
-          - "bash bin/run-percy-mode.sh enabled baseline"
+        command: "bash bin/run-percy-mode.sh enabled baseline"
       - label: ":chromium: Baseline JS=disabled"
         agents:
           os: "linux"
-        commands:
-          - "source ~/.nvm/nvm.sh && nvm use 20"
-          - "bash bin/run-percy-mode.sh disabled baseline"
+        command: "bash bin/run-percy-mode.sh disabled baseline"
 
   - wait
 
@@ -58,15 +56,11 @@ steps:
       - label: ":chromium: Comparison JS=enabled"
         agents:
           os: "linux"
-        commands:
-          - "source ~/.nvm/nvm.sh && nvm use 20"
-          - "bash bin/run-percy-mode.sh enabled comparison"
+        command: "bash bin/run-percy-mode.sh enabled comparison"
       - label: ":chromium: Comparison JS=disabled"
         agents:
           os: "linux"
-        commands:
-          - "source ~/.nvm/nvm.sh && nvm use 20"
-          - "bash bin/run-percy-mode.sh disabled comparison"
+        command: "bash bin/run-percy-mode.sh disabled comparison"
 
   - wait
 
@@ -74,9 +68,7 @@ steps:
     depends_on: "comparisons"
     agents:
       os: "linux"
-    commands:
-      - "source ~/.nvm/nvm.sh && nvm use 20"
-      - "node bin/collect-cycle-report.js"
+    command: "bash bin/cycle-step4.sh"
     artifact_paths:
       - "diff-report.json"
       - "diff-report.md"
