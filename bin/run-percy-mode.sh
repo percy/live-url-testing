@@ -1,0 +1,64 @@
+#!/bin/bash
+# Runs one Percy snapshot pass (one JS mode × one phase) and emits per-snapshot
+# diffs inline. Reusable across baseline + comparison phases, JS=enabled +
+# JS=disabled.
+#
+# Args:
+#   $1  JS mode:   enabled | disabled
+#   $2  phase:     baseline | comparison
+#
+# Reads from BK meta-data (set by Step 1 / create-projects.js):
+#   PERCY_TOKEN_JS_<UPPER_JS>       write_only token for the target Percy project
+#   CYCLE_ID                        cycle identifier used for PERCY_BRANCH
+#
+# Side effects:
+#   - runs `npx percy exec -- playwright test` against 25 URLs
+#   - tees output to .percy-run-$JS-$PHASE.log
+#   - extracts Percy build ID, sets BK meta-data PERCY_BUILD_ID_<UPPER_JS>_<UPPER_PHASE>
+#   - calls bin/fetch-diffs.js to print per-snapshot diff table in this log
+
+set -euo pipefail
+
+JS="${1:?JS arg required (enabled|disabled)}"
+PHASE="${2:?PHASE arg required (baseline|comparison)}"
+
+UPPER_JS=$(echo "$JS" | tr '[:lower:]' '[:upper:]')
+UPPER_PHASE=$(echo "$PHASE" | tr '[:lower:]' '[:upper:]')
+
+TOKEN_KEY="PERCY_TOKEN_JS_${UPPER_JS}"
+
+export PERCY_TOKEN=$(buildkite-agent meta-data get "$TOKEN_KEY")
+CYCLE_ID=$(buildkite-agent meta-data get CYCLE_ID)
+export PERCY_BRANCH="cycle-${CYCLE_ID}"
+
+echo "=== Mode: JS=${JS}, Phase: ${PHASE}, PERCY_BRANCH: ${PERCY_BRANCH} ==="
+
+rm -rf .percy.yml test-results/ playwright-report/
+cp ".percy.js-${JS}.yml" .percy.yml
+echo "=== Active Percy config ==="
+cat .percy.yml
+
+npm ci
+npx percy --version
+npx playwright install --with-deps chromium
+
+LOG=".percy-run-${JS}-${PHASE}.log"
+npx percy exec -- npx playwright test tests/percy_web.spec.js --reporter=dot 2>&1 | tee "$LOG"
+
+# Strip ANSI escapes; extract last builds/<digits> occurrence as Percy build ID.
+sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' "$LOG" > "$LOG.clean"
+PERCY_BUILD_ID=$(grep -oE 'builds/[0-9]+' "$LOG.clean" | tail -1 | cut -d/ -f2 || true)
+
+if [ -n "${PERCY_BUILD_ID:-}" ]; then
+  echo ""
+  echo "=== Percy build id: ${PERCY_BUILD_ID} ==="
+  buildkite-agent meta-data set "PERCY_BUILD_ID_${UPPER_JS}_${UPPER_PHASE}" "$PERCY_BUILD_ID"
+
+  echo ""
+  echo "=== Per-snapshot diffs for build ${PERCY_BUILD_ID} (JS=${JS}, ${PHASE}) ==="
+  node bin/fetch-diffs.js --build-id="$PERCY_BUILD_ID" --token="$PERCY_TOKEN" || echo "WARN: fetch-diffs exited non-zero"
+else
+  echo "WARN: could not extract Percy build ID from ${LOG}"
+  echo "--- last 20 lines of ${LOG} for debugging: ---"
+  tail -20 "$LOG" || true
+fi
