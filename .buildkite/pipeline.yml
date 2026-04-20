@@ -1,55 +1,95 @@
+# Consolidated pipeline: full browser-upgrade validation cycle in one BK build.
+#
+# Required pipeline env var (set in BK UI -> Settings -> Environment Variables):
+#   ENCRYPTION_PASSWORD   decrypts configs/prod.js (holds PERCY_USER_TOKEN + team ID)
+#
+# Flow:
+#   Step 1  decrypt config, archive stale projects, create 2 fresh projects,
+#           emit write/read tokens as BK meta-data, re-encrypt config
+#   Step 2  Baselines (parallel, per JS mode)
+#   Step 3  Comparisons (parallel, per JS mode)
+#           -- browser upgrade step is TEMPORARILY SKIPPED until platform-ops
+#              ships an automation endpoint. Re-insert a `block:` step between
+#              step 2 and 3 to re-enable the manual pause.
+#   Step 4  Fetch per-snapshot diffs, write diff-report artifact, annotate BK
+
 env:
-  PERCY_BRANCH: "staging"
+  PROFILE: "prod"
 
 steps:
-  - label: "Live URL Test :chromium:"
+  - label: ":percy: Step 1 — Prep + create projects"
+    key: "setup"
     agents:
       os: "linux"
     commands:
+      - "source ~/.nvm/nvm.sh && nvm install 20 && nvm use 20"
+      - 'export CYCLE_ID="${BUILDKITE_BUILD_NUMBER}-$(date +%Y%m%d)"'
+      - 'echo "CYCLE_ID=$CYCLE_ID"'
+      - 'buildkite-agent meta-data set CYCLE_ID "$CYCLE_ID"'
       - |
-        if [ -z "$PERCY_TOKEN" ]; then
-          echo "ERROR: PERCY_TOKEN is not set. Open 'New Build' -> Options -> Environment Variables and add PERCY_TOKEN=<your-percy-write-token>."
+        if [ -z "${ENCRYPTION_PASSWORD:-}" ]; then
+          echo "ERROR: ENCRYPTION_PASSWORD is not set."
+          echo "Open Settings -> Environment Variables and add ENCRYPTION_PASSWORD."
           exit 1
         fi
-      - |
-        if [ "$JS" != "enabled" ] && [ "$JS" != "disabled" ]; then
-          echo "ERROR: JS must be 'enabled' or 'disabled' (got: '$JS')"
-          echo "Open 'New Build' -> Options -> Environment Variables and add JS=enabled or JS=disabled."
-          exit 1
-        fi
-      - "rm -rf .percy.yml test-results/ playwright-report/ .percy-run.log"
-      - "source ~/.nvm/nvm.sh"
-      - "nvm install 20"
-      - "nvm use 20"
-      - "node --version"
-      - 'echo "=== JS: $JS (mode: js-$JS) ==="'
-      - 'cp ".percy.js-$JS.yml" .percy.yml'
-      - 'echo "=== Active config ==="; cat .percy.yml'
       - "npm ci"
-      - "npx percy --version"
-      - "npx playwright install --with-deps chromium"
-      # Run Percy+PW and tee output so we can post-parse the Percy build ID.
-      - "npx percy exec -- npx playwright test tests/percy_web.spec.js --reporter=dot 2>&1 | tee .percy-run.log"
-      # Extract Percy build ID from percy CLI output. Strip ANSI escapes first; then
-      # take the last `/builds/<digits>` occurrence in the log (percy always prints
-      # a single "Finalized build #N: https://percy.io/.../builds/<ID>" line).
-      - |
-        sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' .percy-run.log > .percy-run.log.clean
-        PERCY_BUILD_ID=$(grep -oE 'builds/[0-9]+' .percy-run.log.clean | tail -1 | cut -d/ -f2)
-        if [ -n "$PERCY_BUILD_ID" ]; then
-          echo "=== Percy build id: $PERCY_BUILD_ID ==="
-          buildkite-agent meta-data set "PERCY_BUILD_ID_JS_${JS}" "$PERCY_BUILD_ID"
-          buildkite-agent meta-data set "PERCY_BUILD_ID" "$PERCY_BUILD_ID"
-        else
-          echo "WARN: could not extract Percy build ID from .percy-run.log"
-          echo "--- last 20 lines of .percy-run.log for debugging: ---"
-          tail -20 .percy-run.log || true
-        fi
-      # Inline per-snapshot diff listing for this run (Option B).
-      # If this build has no baseline yet, the diff step returns no diffs — that's fine.
-      - |
-        if [ -n "$PERCY_BUILD_ID" ] && [ -f "bin/fetch-diffs.js" ]; then
-          echo ""
-          echo "=== Per-snapshot diffs for build $PERCY_BUILD_ID (JS=$JS) ==="
-          node bin/fetch-diffs.js --build-id="$PERCY_BUILD_ID" --token="$PERCY_TOKEN" || echo "WARN: fetch-diffs exited non-zero"
-        fi
+      - "npm run decrypt:config"
+      - "node bin/cleanup-old-projects.js --max-age-days=90 || echo 'WARN: cleanup failed (non-fatal)'"
+      - "node bin/create-projects.js"
+      - "npm run encrypt:config"
+
+  - wait
+
+  - group: ":chromium: Step 2 — Baselines (parallel)"
+    key: "baselines"
+    depends_on: "setup"
+    steps:
+      - label: ":chromium: Baseline JS=enabled"
+        agents:
+          os: "linux"
+        commands:
+          - "source ~/.nvm/nvm.sh && nvm use 20"
+          - "bash bin/run-percy-mode.sh enabled baseline"
+      - label: ":chromium: Baseline JS=disabled"
+        agents:
+          os: "linux"
+        commands:
+          - "source ~/.nvm/nvm.sh && nvm use 20"
+          - "bash bin/run-percy-mode.sh disabled baseline"
+
+  - wait
+
+  # TODO: re-insert BLOCK step here when platform-ops browser-upgrade automation lands.
+  # Shape:
+  #   - block: ":hand: Ops: upgrade browser version in Percy projects"
+  # For now, comparisons run immediately after baselines (same browser, expect 0 diffs).
+
+  - group: ":chromium: Step 3 — Comparisons (parallel)"
+    key: "comparisons"
+    depends_on: "baselines"
+    steps:
+      - label: ":chromium: Comparison JS=enabled"
+        agents:
+          os: "linux"
+        commands:
+          - "source ~/.nvm/nvm.sh && nvm use 20"
+          - "bash bin/run-percy-mode.sh enabled comparison"
+      - label: ":chromium: Comparison JS=disabled"
+        agents:
+          os: "linux"
+        commands:
+          - "source ~/.nvm/nvm.sh && nvm use 20"
+          - "bash bin/run-percy-mode.sh disabled comparison"
+
+  - wait
+
+  - label: ":mag: Step 4 — Fetch diffs + annotate report"
+    depends_on: "comparisons"
+    agents:
+      os: "linux"
+    commands:
+      - "source ~/.nvm/nvm.sh && nvm use 20"
+      - "node bin/collect-cycle-report.js"
+    artifact_paths:
+      - "diff-report.json"
+      - "diff-report.md"
