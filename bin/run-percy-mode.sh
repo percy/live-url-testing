@@ -8,8 +8,11 @@
 #   $2  phase:     baseline | comparison
 #
 # Reads from BK meta-data (set by Step 1 / create-projects.js):
-#   PERCY_TOKEN_JS_<UPPER_JS>       write_only token for the target Percy project
-#   CYCLE_ID                        cycle identifier used for PERCY_BRANCH
+#   PERCY_TOKEN_JS_<UPPER_JS>       full-access (master) token for the target Percy project
+#
+# Branch convention:
+#   baseline   -> PERCY_BRANCH=master  (project default branch; Percy anchors diffs here)
+#   comparison -> PERCY_BRANCH=staging (non-default branch; Percy auto-compares vs master)
 #
 # Side effects:
 #   - runs `npx percy exec -- playwright test` against 25 URLs
@@ -40,8 +43,18 @@ TOKEN_KEY="PERCY_TOKEN_JS_${UPPER_JS}"
 # `fetch-diffs.js` for GET /snapshots.
 export PERCY_TOKEN=$(buildkite-agent meta-data get "$TOKEN_KEY")
 
-CYCLE_ID=$(buildkite-agent meta-data get CYCLE_ID)
-export PERCY_BRANCH="cycle-${CYCLE_ID}"
+case "$PHASE" in
+  baseline)
+    export PERCY_BRANCH="master"
+    ;;
+  comparison)
+    export PERCY_BRANCH="staging"
+    ;;
+  *)
+    echo "ERROR: PHASE must be 'baseline' or 'comparison', got: $PHASE" >&2
+    exit 2
+    ;;
+esac
 
 echo "=== Mode: JS=${JS}, Phase: ${PHASE}, PERCY_BRANCH: ${PERCY_BRANCH} ==="
 

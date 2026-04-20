@@ -2,8 +2,8 @@
 // Fetch per-test diff data for a Percy build and emit a report to stdout + optional JSON file.
 //
 // Usage:
-//   node bin/fetch-diffs.js --build-id=<percy-build-id> --token=<read-or-master-token> [--json=path]
-//   node bin/fetch-diffs.js --latest --project-id=<id> --token=<user-token> [--branch=<x>]
+//   node bin/fetch-diffs.js --build-id=<percy-build-id> --token=<project-master-token> [--json=path]
+//   node bin/fetch-diffs.js --latest --project-id=<id> --token=<project-master-token> [--branch=<x>]
 //
 // Output: structured stdout (human-readable, emoji-free for BK) + optional JSON file.
 // Designed to be called twice per cycle (once per JS mode) and combined by report.js.
@@ -28,7 +28,7 @@ async function resolveBuildId(args) {
   if (args['build-id']) return args['build-id'];
   if (args.latest && args['project-id']) {
     const builds = await listBuildsForProject({
-      readToken: args.token,
+      token: args.token,
       projectId: args['project-id'],
       branch: args.branch,
       limit: 1,
@@ -59,7 +59,7 @@ async function main() {
   }
 
   const buildId = await resolveBuildId(args);
-  const snapshots = await listSnapshotsForBuild({ readToken: args.token, buildId });
+  const snapshots = await listSnapshotsForBuild({ token: args.token, buildId });
 
   const tests = snapshots.map((s) => ({
     name: s.name,
