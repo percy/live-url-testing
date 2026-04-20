@@ -17,7 +17,7 @@ steps:
           echo "Open 'New Build' -> Options -> Environment Variables and add JS=enabled or JS=disabled."
           exit 1
         fi
-      - "rm -rf .percy.yml test-results/ playwright-report/"
+      - "rm -rf .percy.yml test-results/ playwright-report/ .percy-run.log"
       - "source ~/.nvm/nvm.sh"
       - "nvm install 20"
       - "nvm use 20"
@@ -28,4 +28,28 @@ steps:
       - "npm ci"
       - "npx percy --version"
       - "npx playwright install --with-deps chromium"
-      - "npx percy exec -- npx playwright test tests/percy_web.spec.js --reporter=dot"
+      # Run Percy+PW and tee output so we can post-parse the Percy build ID.
+      - "npx percy exec -- npx playwright test tests/percy_web.spec.js --reporter=dot 2>&1 | tee .percy-run.log"
+      # Extract Percy build ID from percy CLI output. Strip ANSI escapes first; then
+      # take the last `/builds/<digits>` occurrence in the log (percy always prints
+      # a single "Finalized build #N: https://percy.io/.../builds/<ID>" line).
+      - |
+        sed -r 's/\x1B\[[0-9;]*[a-zA-Z]//g' .percy-run.log > .percy-run.log.clean
+        PERCY_BUILD_ID=$(grep -oE 'builds/[0-9]+' .percy-run.log.clean | tail -1 | cut -d/ -f2)
+        if [ -n "$PERCY_BUILD_ID" ]; then
+          echo "=== Percy build id: $PERCY_BUILD_ID ==="
+          buildkite-agent meta-data set "PERCY_BUILD_ID_JS_${JS}" "$PERCY_BUILD_ID"
+          buildkite-agent meta-data set "PERCY_BUILD_ID" "$PERCY_BUILD_ID"
+        else
+          echo "WARN: could not extract Percy build ID from .percy-run.log"
+          echo "--- last 20 lines of .percy-run.log for debugging: ---"
+          tail -20 .percy-run.log || true
+        fi
+      # Inline per-snapshot diff listing for this run (Option B).
+      # If this build has no baseline yet, the diff step returns no diffs — that's fine.
+      - |
+        if [ -n "$PERCY_BUILD_ID" ] && [ -f "bin/fetch-diffs.js" ]; then
+          echo ""
+          echo "=== Per-snapshot diffs for build $PERCY_BUILD_ID (JS=$JS) ==="
+          node bin/fetch-diffs.js --build-id="$PERCY_BUILD_ID" --token="$PERCY_TOKEN" || echo "WARN: fetch-diffs exited non-zero"
+        fi
