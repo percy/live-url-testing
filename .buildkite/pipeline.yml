@@ -23,20 +23,7 @@ steps:
       os: "linux"
     commands:
       - "source ~/.nvm/nvm.sh && nvm install 20 && nvm use 20"
-      - 'export CYCLE_ID="${BUILDKITE_BUILD_NUMBER}-$(date +%Y%m%d)"'
-      - 'echo "CYCLE_ID=$CYCLE_ID"'
-      - 'buildkite-agent meta-data set CYCLE_ID "$CYCLE_ID"'
-      - |
-        if [ -z "${ENCRYPTION_PASSWORD:-}" ]; then
-          echo "ERROR: ENCRYPTION_PASSWORD is not set."
-          echo "Open Settings -> Environment Variables and add ENCRYPTION_PASSWORD."
-          exit 1
-        fi
-      - "npm ci"
-      - "npm run decrypt:config"
-      - "node bin/cleanup-old-projects.js --max-age-days=90 || echo 'WARN: cleanup failed (non-fatal)'"
-      - "node bin/create-projects.js"
-      - "npm run encrypt:config"
+      - "bash bin/cycle-step1.sh"
 
   - wait
 
