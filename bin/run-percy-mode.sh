@@ -81,16 +81,12 @@ if [ -n "${PERCY_BUILD_ID:-}" ]; then
 
   echo ""
   echo "=== Waiting for Percy build ${PERCY_BUILD_ID} to finalize (server-side processing) ==="
-  # Without this, the BK step exits as soon as `percy exec` finishes the
-  # upload — but Percy's rendering + diff pipeline is still running. The
-  # next BK step (comparison, for baseline; report, for comparison) would
-  # race against an unfinalized build. Poll until state=finished, then
-  # sleep 30s for safety.
-  node bin/wait-for-build.js --build-id="$PERCY_BUILD_ID" --token="$PERCY_TOKEN"
-
-  echo ""
-  echo "=== Per-snapshot diffs for build ${PERCY_BUILD_ID} (JS=${JS}, ${PHASE}) ==="
-  node bin/fetch-diffs.js --build-id="$PERCY_BUILD_ID" --token="$PERCY_TOKEN" || echo "WARN: fetch-diffs exited non-zero"
+  # `percy exec` returns after upload+finalize API calls; Percy then runs
+  # rendering + diff asynchronously. Poll until state=finished so that when
+  # BK's `wait` lifts between groups, both builds are truly done.
+  # Cross-agent settle buffers (30s after baselines, 10s after comparisons)
+  # are handled by dedicated pipeline steps, not here.
+  node bin/wait-for-build.js --build-id="$PERCY_BUILD_ID" --token="$PERCY_TOKEN" --post-sleep-seconds=0
 else
   echo "WARN: could not extract Percy build ID from ${LOG}"
   echo "--- last 20 lines of ${LOG} for debugging: ---"

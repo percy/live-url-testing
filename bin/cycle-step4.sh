@@ -15,6 +15,12 @@ if [ -s "${HOME}/.nvm/nvm.sh" ]; then
   nvm use 20
 fi
 
+# Cross-agent settle buffer: both comparison builds just finalized on Percy;
+# give the server 10s to fully settle snapshot/comparison data before we
+# read per-snapshot diffs.
+echo "=== Settling 10s before diff check ==="
+sleep 10
+
 # node_modules isn't carried across parallel agents, so re-install for the
 # collect step's own npm dependencies (currently none runtime but keeps shape
 # consistent if we add any).

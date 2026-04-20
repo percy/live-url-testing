@@ -44,14 +44,23 @@ steps:
 
   - wait
 
+  # Settle buffer: both baselines finalized on Percy; give the server 30s to
+  # fully settle rendering/processing caches before comparisons start uploading.
   # TODO: re-insert BLOCK step here when platform-ops browser-upgrade automation lands.
   # Shape:
   #   - block: ":hand: Ops: upgrade browser version in Percy projects"
-  # For now, comparisons run immediately after baselines (same browser, expect 0 diffs).
+  - label: ":hourglass_flowing_sand: Settle 30s after baselines"
+    key: "baseline-settle"
+    depends_on: "baselines"
+    agents:
+      os: "linux"
+    command: "sleep 30"
+
+  - wait
 
   - group: ":chromium: Step 3 — Comparisons (parallel)"
     key: "comparisons"
-    depends_on: "baselines"
+    depends_on: "baseline-settle"
     steps:
       - label: ":chromium: Comparison JS=enabled"
         agents:
