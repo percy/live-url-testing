@@ -19,6 +19,15 @@
 
 set -euo pipefail
 
+# Ensure Node 20 is present on whichever BK agent picked up this step.
+# `nvm install` is idempotent: installs if missing, no-op if present, always activates.
+if [ -s "${HOME}/.nvm/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  source "${HOME}/.nvm/nvm.sh"
+  nvm install 20
+  nvm use 20
+fi
+
 JS="${1:?JS arg required (enabled|disabled)}"
 PHASE="${2:?PHASE arg required (baseline|comparison)}"
 

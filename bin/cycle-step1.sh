@@ -18,6 +18,14 @@
 
 set -euo pipefail
 
+# Ensure Node 20 is present on whichever BK agent picked up this step.
+if [ -s "${HOME}/.nvm/nvm.sh" ]; then
+  # shellcheck disable=SC1091
+  source "${HOME}/.nvm/nvm.sh"
+  nvm install 20
+  nvm use 20
+fi
+
 if [ -z "${ENCRYPTION_PASSWORD:-}" ]; then
   echo "ERROR: ENCRYPTION_PASSWORD is not set."
   echo "Open pipeline Settings -> Environment Variables and add ENCRYPTION_PASSWORD."
