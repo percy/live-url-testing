@@ -113,10 +113,29 @@ async function getComparison({ token, comparisonId }) {
   };
 }
 
+// Fetch a single build by ID. Used by wait-for-build.js to poll state.
+// Percy build states: pending -> processing -> finished (terminal), or failed/expired.
+async function getBuild({ token, buildId }) {
+  const r = await request('GET', `/api/v1/builds/${buildId}`, { token });
+  const a = r.data.attributes;
+  return {
+    id: r.data.id,
+    state: a.state,
+    branch: a.branch,
+    buildNumber: a['build-number'],
+    totalSnapshots: a['total-snapshots'],
+    totalComparisons: a['total-comparisons'],
+    totalDiff: a['total-comparisons-diff'],
+    reviewState: a['review-state'],
+    webUrl: a['web-url'],
+  };
+}
+
 module.exports = {
   createProject,
   getProjectTokens,
   listBuildsForProject,
   listSnapshotsForBuild,
   getComparison,
+  getBuild,
 };
