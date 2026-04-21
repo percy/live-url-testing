@@ -11,6 +11,11 @@
 // Env:
 //   CYCLE_ID          (required) unique identifier for this cycle, used in project names
 //   PROFILE           (optional) defaults to "prod" — which configs/<PROFILE>.js to load
+//   TARGET_BROWSERS   (optional) comma-separated browser family slugs or numeric IDs
+//                     (e.g. "chrome_on_android", "chrome,firefox", "5,6", "iphone,android").
+//                     If set, each created project ends up with EXACTLY those families
+//                     enabled (adds missing, deletes others). If unset, Percy's default
+//                     set (4 desktop browsers) is left untouched.
 //
 // Outputs (when BUILDKITE is set, writes via `buildkite-agent meta-data set`):
 //   PERCY_TOKEN_JS_ENABLED         write_only token for JS=enabled project
@@ -27,7 +32,86 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const { execSync } = require('node:child_process');
-const { createProject, getProjectTokens } = require('./lib/percy-api');
+const {
+  createProject,
+  getProjectTokens,
+  addProjectBrowserFamily,
+  removeProjectBrowser,
+  listProjectBrowsers,
+} = require('./lib/percy-api');
+
+// Percy browser-family IDs are stable (verified via GET /api/v1/browser-families on
+// 2026-04-21). Accept friendly slugs + short aliases + numeric IDs from TARGET_BROWSERS.
+const FAMILY_BY_ALIAS = {
+  firefox:             { id: 1, name: 'Firefox' },
+  chrome:              { id: 2, name: 'Chrome' },
+  edge:                { id: 3, name: 'Edge' },
+  safari:              { id: 4, name: 'Safari' },
+  iphone:              { id: 5, name: 'Safari on iPhone' },
+  safari_on_iphone:    { id: 5, name: 'Safari on iPhone' },
+  android:             { id: 6, name: 'Chrome on Android' },
+  chrome_on_android:   { id: 6, name: 'Chrome on Android' },
+};
+
+function resolveFamily(token) {
+  const k = String(token).trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (FAMILY_BY_ALIAS[k]) return FAMILY_BY_ALIAS[k];
+  if (/^\d+$/.test(k)) {
+    // Numeric ID: accept and use as-is (Percy validates on POST).
+    const names = { 1: 'Firefox', 2: 'Chrome', 3: 'Edge', 4: 'Safari', 5: 'Safari on iPhone', 6: 'Chrome on Android' };
+    return { id: Number(k), name: names[Number(k)] || `family_${k}` };
+  }
+  throw new Error(`Unknown browser family: "${token}". Accepted: ${Object.keys(FAMILY_BY_ALIAS).join(', ')} or numeric id.`);
+}
+
+function parseTargetBrowsers(raw) {
+  if (!raw) return null; // null => no mutation, leave Percy default set
+  const tokens = raw.split(',').map((s) => s.trim()).filter(Boolean);
+  if (!tokens.length) return null;
+  const seen = new Set();
+  const out = [];
+  for (const t of tokens) {
+    const fam = resolveFamily(t);
+    if (seen.has(fam.id)) continue;
+    seen.add(fam.id);
+    out.push(fam);
+  }
+  return out;
+}
+
+// Sync a project's browser-targets to EXACTLY the desired family set: attach any
+// missing, remove any extras. Idempotent and safe to re-run.
+async function syncProjectBrowsers({ userToken, teamId, project, desiredFamilies }) {
+  const projectSlugTail = project.fullSlug.split('/').slice(1).join('/');
+  const current = await listProjectBrowsers({ userToken, teamId, projectSlug: projectSlugTail });
+  const currentByFamily = new Map(current.map((c) => [String(c.familyId), c]));
+  const desiredIds = new Set(desiredFamilies.map((f) => String(f.id)));
+
+  // Add missing.
+  for (const fam of desiredFamilies) {
+    if (currentByFamily.has(String(fam.id))) {
+      console.error(`[create-projects]   ${fam.name} already enabled (family=${fam.id})`);
+      continue;
+    }
+    try {
+      await addProjectBrowserFamily({ userToken, projectId: project.id, browserFamilyId: fam.id });
+      console.error(`[create-projects]   + enabled ${fam.name} (family=${fam.id})`);
+    } catch (e) {
+      console.error(`[create-projects]   WARN: could not enable ${fam.name}: ${e.message}`);
+    }
+  }
+
+  // Remove extras.
+  for (const c of current) {
+    if (desiredIds.has(String(c.familyId))) continue;
+    try {
+      await removeProjectBrowser({ userToken, projectBrowserTargetId: c.pbtId });
+      console.error(`[create-projects]   - removed family=${c.familyId} (pbt=${c.pbtId})`);
+    } catch (e) {
+      console.error(`[create-projects]   WARN: could not remove pbt=${c.pbtId} (family=${c.familyId}): ${e.message}`);
+    }
+  }
+}
 
 function loadConfig() {
   // Env var overrides win; fall back to decrypted configs/<PROFILE>.js
@@ -79,7 +163,7 @@ function setMetaOrPrint(key, value) {
   }
 }
 
-async function createOne({ userToken, teamId, name }) {
+async function createOne({ userToken, teamId, name, desiredFamilies }) {
   console.error(`[create-projects] creating: ${name}`);
   const project = await createProject({ userToken, teamId, name, type: 'web' });
   console.error(`[create-projects]   id=${project.id} slug=${project.slug}`);
@@ -87,6 +171,11 @@ async function createOne({ userToken, teamId, name }) {
   // master = full-access; can upload snapshots AND read builds/snapshots.
   // One token used by both `percy exec` (upload) and fetch-diffs (read).
   if (!tokens.master) throw new Error(`no master token returned for ${name}`);
+
+  if (desiredFamilies && desiredFamilies.length) {
+    await syncProjectBrowsers({ userToken, teamId, project, desiredFamilies });
+  }
+
   return { ...project, token: tokens.master };
 }
 
@@ -94,16 +183,24 @@ async function main() {
   const cfg = loadConfig();
   const { PERCY_USER_TOKEN: userToken, PERCY_TEAM_ID: teamId } = cfg;
   const cycleId = requireEnv('CYCLE_ID');
+  const desiredFamilies = parseTargetBrowsers(process.env.TARGET_BROWSERS);
+  if (desiredFamilies) {
+    console.error(`[create-projects] TARGET_BROWSERS => ${desiredFamilies.map((f) => `${f.name}(id=${f.id})`).join(', ')}`);
+  } else {
+    console.error('[create-projects] TARGET_BROWSERS not set — leaving Percy default set (4 desktop browsers) untouched.');
+  }
 
   const jsEnabled = await createOne({
     userToken,
     teamId,
     name: `auto-live-url-${cycleId}-js-enabled`,
+    desiredFamilies,
   });
   const jsDisabled = await createOne({
     userToken,
     teamId,
     name: `auto-live-url-${cycleId}-js-disabled`,
+    desiredFamilies,
   });
 
   setMetaOrPrint('PERCY_TOKEN_JS_ENABLED', jsEnabled.token);

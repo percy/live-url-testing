@@ -131,6 +131,53 @@ async function getBuild({ token, buildId }) {
   };
 }
 
+// --- Browser target management ---
+//
+// New Percy projects default to 4 desktop browser-targets (Firefox, Chrome, Edge,
+// Safari). We can add or remove any via POST/DELETE on /api/v1/project-browser-targets
+// using our org user Token (no session/CSRF required — shape mirrors Percy UI's own
+// network call but with Token auth working the same).
+//
+// Family IDs are stable (verified via GET /api/v1/browser-families):
+//   1 = Firefox    4 = Safari              (default, already enabled)
+//   2 = Chrome     5 = Safari on iPhone    ← mobile
+//   3 = Edge       6 = Chrome on Android   ← mobile
+//
+// Flow: POST with a browser-FAMILY relationship (not browser-target) — Percy auto-
+// picks the current latest browser-target for that family.
+// DELETE by the project-browser-target record's own ID removes a browser.
+// Confirmed working end-to-end via probes on 2026-04-21 (add 201, remove 204).
+
+async function addProjectBrowserFamily({ userToken, projectId, browserFamilyId }) {
+  const body = {
+    data: {
+      type: 'project-browser-targets',
+      relationships: {
+        project: { data: { type: 'projects', id: String(projectId) } },
+        'browser-family': { data: { type: 'browser-families', id: String(browserFamilyId) } },
+      },
+    },
+  };
+  return request('POST', `/api/v1/project-browser-targets`, { token: userToken, body });
+}
+
+async function removeProjectBrowser({ userToken, projectBrowserTargetId }) {
+  return request('DELETE', `/api/v1/project-browser-targets/${projectBrowserTargetId}`, { token: userToken });
+}
+
+// Returns [{ pbtId, browserTargetId, familyId }] for all currently-attached browsers.
+async function listProjectBrowsers({ userToken, teamId, projectSlug }) {
+  const r = await request('GET', `/api/v1/projects/${teamId}/${projectSlug}?include=project-browser-targets,browser-targets`, { token: userToken });
+  const included = r.included || [];
+  const bts = included.filter((x) => x.type === 'browser-targets');
+  const famByBt = new Map(bts.map((bt) => [bt.id, bt.relationships?.['browser-family']?.data?.id]));
+  const pbts = included.filter((x) => x.type === 'project-browser-targets');
+  return pbts.map((p) => {
+    const btId = p.relationships?.['browser-target']?.data?.id;
+    return { pbtId: p.id, browserTargetId: btId, familyId: famByBt.get(btId) };
+  });
+}
+
 module.exports = {
   createProject,
   getProjectTokens,
@@ -138,4 +185,7 @@ module.exports = {
   listSnapshotsForBuild,
   getComparison,
   getBuild,
+  addProjectBrowserFamily,
+  removeProjectBrowser,
+  listProjectBrowsers,
 };
