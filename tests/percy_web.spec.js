@@ -50,10 +50,12 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'httpbin-html');
   });
 
-  test('amazon-home', async function ({ page }) {
-    await page.goto('https://www.amazon.com/', { timeout: 90000 });
+  // Replaces amazon-home (10.72% diff on #127 — dynamic deals/personalized widgets).
+  // github-home: stable marketing landing, dark/light mode, CSS grid/flex, octocat imagery.
+  test('github-home', async function ({ page }) {
+    await page.goto('https://github.com/', { timeout: 90000 });
     await page.waitForTimeout(3000);
-    await percySnapshot(page, 'amazon-home');
+    await percySnapshot(page, 'github-home');
   });
 
   test('imdb-home', async function ({ page }) {
@@ -116,16 +118,20 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'salesforce-home');
   });
 
-  test('google-play', async function ({ page }) {
-    await page.goto('https://play.google.com/', { timeout: 90000 });
+  // Replaces google-play (20.32% diff on #127 — featured apps shuffle, trending charts).
+  // bootstrap-home: CSS framework showcase page; component grid, dark/light mode, stable.
+  test('bootstrap-home', async function ({ page }) {
+    await page.goto('https://getbootstrap.com/', { timeout: 90000 });
     await page.waitForTimeout(3000);
-    await percySnapshot(page, 'google-play');
+    await percySnapshot(page, 'bootstrap-home');
   });
 
-  test('apple-home', async function ({ page }) {
-    await page.goto('https://www.apple.com/', { timeout: 90000 });
+  // Replaces apple-home (12.20% / 6.48% diff on #127 — hero carousel/videos, promo banners).
+  // shibhani-regions: static github.io demo page. User-vetted stable baseline.
+  test('shibhani-regions', async function ({ page }) {
+    await page.goto('https://shibhani-v.github.io/Shibhani-V/regions', { timeout: 90000 });
     await page.waitForTimeout(3000);
-    await percySnapshot(page, 'apple-home');
+    await percySnapshot(page, 'shibhani-regions');
   });
 
   test('tesla-home', async function ({ page }) {

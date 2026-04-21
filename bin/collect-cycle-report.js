@@ -72,6 +72,12 @@ async function collectMode(mode) {
   };
 }
 
+// Percy snapshot URLs are derived by appending `/snapshots/<id>` to the build's web-url.
+// Example: https://percy.io/<fullSlug>/builds/<buildNumber>/snapshots/<snapshotId>
+function snapshotUrl(buildWebUrl, snapshotId) {
+  return `${buildWebUrl.replace(/\/$/, '')}/snapshots/${snapshotId}`;
+}
+
 function renderText(section) {
   const lines = [];
   lines.push(`── JS=${section.mode} ──`);
@@ -89,8 +95,8 @@ function renderText(section) {
   } else {
     for (const t of diffs) {
       const pct = (t.diffRatio * 100).toFixed(2);
-      const aiPct = (t.aiDiffRatio * 100).toFixed(2);
-      lines.push(`  [diff] ${t.name.padEnd(36)} diff=${pct}%  ai=${aiPct}%  snapshot=${t.snapshotId}`);
+      const url = snapshotUrl(section.build.webUrl, t.snapshotId);
+      lines.push(`  [diff] ${t.name.padEnd(36)} diff=${pct}%  ${url}`);
     }
     const nd = section.tests.filter((t) => t.status === 'no_diff').length;
     if (nd) lines.push(`  ${nd} other snapshot(s): no diff`);
@@ -119,10 +125,11 @@ function renderMarkdown(sections) {
     if (!diffs.length) {
       out.push('No diffs.');
     } else {
-      out.push('| Name | diff% | ai% | snapshot |');
-      out.push('|---|---:|---:|---|');
+      out.push('| Name | diff% | snapshot |');
+      out.push('|---|---:|---|');
       for (const t of diffs) {
-        out.push(`| ${t.name} | ${(t.diffRatio * 100).toFixed(2)} | ${(t.aiDiffRatio * 100).toFixed(2)} | \`${t.snapshotId}\` |`);
+        const url = snapshotUrl(s.build.webUrl, t.snapshotId);
+        out.push(`| ${t.name} | ${(t.diffRatio * 100).toFixed(2)} | [${t.snapshotId}](${url}) |`);
       }
     }
     out.push('');
