@@ -88,10 +88,14 @@ test.describe('Live URL Visual Testing', function () {
     await percySnapshot(page, 'linear-home');
   });
 
-  test('figma-home', async function ({ page }) {
-    await page.goto('https://www.figma.com/', { timeout: 90000 });
+  // Replaces figma-home (hung Percy renderer at 375px Safari on #128 — WebGL
+  // canvas demos + login dialogs caused asset-load timeouts). Percy error:
+  // "1 snapshots in this build took too long to render even after multiple retries".
+  // nodejs-home: static marketing landing, minimal JS, stable across widths.
+  test('nodejs-home', async function ({ page }) {
+    await page.goto('https://nodejs.org/en', { timeout: 90000 });
     await page.waitForTimeout(3000);
-    await percySnapshot(page, 'figma-home');
+    await percySnapshot(page, 'nodejs-home');
   });
 
   test('browserstack-home', async function ({ page }) {
