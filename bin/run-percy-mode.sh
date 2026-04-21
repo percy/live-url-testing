@@ -68,6 +68,13 @@ npx percy --version
 npx playwright install --with-deps chromium
 
 LOG=".percy-run-${JS}-${PHASE}.log"
+
+# Belt-and-suspenders: if any single URL fails to reach network-idle within
+# Percy's internal renderer timeout, capture the snapshot anyway instead of
+# failing the whole build. Observed on #128/#129 where figma-home + nasa-home
+# hung the renderer and took down otherwise-clean baselines.
+export PERCY_IGNORE_TIMEOUT_ERROR=true
+
 npx percy exec -- npx playwright test tests/percy_web.spec.js --reporter=dot 2>&1 | tee "$LOG"
 
 # Strip ANSI escapes; extract last builds/<digits> occurrence as Percy build ID.
