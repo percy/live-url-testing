@@ -209,106 +209,96 @@ async function collectMode(mode, { userToken, teamId }) {
   };
 }
 
-function summary(section) {
-  const byClass = { regression: 0, flaky: 0, stable: 0 };
-  for (const e of section.entries) byClass[e.classification]++;
-  return byClass;
-}
-
 function fmtPct(n) {
   return `${(n * 100).toFixed(2)}%`;
+}
+
+// An entry is "interesting" if any of its aggregated (state=finished) runs
+// produced a diff > threshold. Rows with zero diff across all OK runs are
+// dropped entirely — no stable/flaky/regression sections, just one flat table
+// listing every (snapshot × browser) that actually changed in at least one run.
+function hasAnyDiff(entry) {
+  return entry.perRun.some((r) => (r.diffRatio || 0) > MIN_DIFF_THRESHOLD);
+}
+
+// Render the per-run cell value. If this run has OK data, show "X.XX%"
+// (linked to the snapshot on Percy). If this run errored, show "—".
+function cellForRun(perRunByIndex, runIndex) {
+  const r = perRunByIndex.get(runIndex);
+  if (!r) return '—';
+  const pct = fmtPct(r.diffRatio || 0);
+  return `[${pct}](${r.snapshotUrl})`;
 }
 
 function renderMarkdownForMode(section) {
   if (section.empty) {
     return [`## JS=${section.mode} — no data`, `_${section.reason}_`, ''].join('\n');
   }
-  const byClass = summary(section);
   const totalRuns = section.buildIds.length;
   const okCount = section.okRuns.length;
   const erroredCount = section.erroredRuns.length;
+
+  const rows = section.entries
+    .filter(hasAnyDiff)
+    .sort((a, b) => {
+      const aMax = Math.max(0, ...a.perRun.map((r) => r.diffRatio || 0));
+      const bMax = Math.max(0, ...b.perRun.map((r) => r.diffRatio || 0));
+      return bMax - aMax || a.snapshot.localeCompare(b.snapshot) || a.browser.display.localeCompare(b.browser.display);
+    });
+
   const out = [];
   out.push(`## JS=${section.mode}`);
   out.push('');
   out.push(`- Project: \`${section.projectSlug}\``);
-  out.push(`- Runs aggregated: **${okCount} / ${totalRuns}** (${erroredCount} errored on Percy backend)`);
+  out.push(`- Runs: **${okCount} / ${totalRuns}**${erroredCount ? ` (${erroredCount} errored on Percy backend)` : ''}`);
   out.push(`- Browsers: **${section.browserTargetCount}**`);
-  out.push(`- 🔴 Regressions: **${byClass.regression}**  |  🟡 Flaky: **${byClass.flaky}**  |  🟢 Stable: **${byClass.stable}**`);
+  out.push(`- Rows with any diff: **${rows.length}** (of ${section.entries.length} (snapshot × browser) combos)`);
   out.push('');
 
-  // Errored runs block (Percy-side processing failures; shown separately since
-  // their snapshot data is not reliable enough to fold into classification).
+  // Errored runs block (Percy-side processing failures — their data isn't
+  // reliable enough to aggregate but we surface the build IDs for drill-down).
   if (erroredCount) {
     out.push(`### ⚠️ Errored runs (${erroredCount})`);
     out.push('');
-    out.push('| Run | Build | State | Notes |');
-    out.push('|---|---|---|---|');
+    out.push('| Run | Build | State |');
+    out.push('|---|---|---|');
     for (const r of section.erroredRuns) {
       const buildLink = r.webUrl ? `[${r.buildId}](${r.webUrl})` : r.buildId;
-      out.push(`| ${r.run} | ${buildLink} | \`${r.state}\` | ${r.error || 'Percy marked this build failed during server-side processing'} |`);
+      out.push(`| ${r.run} | ${buildLink} | \`${r.state}\` |`);
     }
     out.push('');
   }
 
-  // -- Regressions (worst first)
-  const regressions = section.entries
-    .filter((e) => e.classification === 'regression')
-    .sort((a, b) => b.avg - a.avg);
-  out.push(`### 🔴 Regressions — diff in all ${okCount} aggregated runs (action needed)`);
-  if (!regressions.length) {
-    out.push('_None._');
+  out.push('### Snapshots with diffs');
+  out.push('');
+
+  if (!rows.length) {
+    out.push('_No diffs across any run for any (snapshot × browser) combo._');
     out.push('');
-  } else {
-    out.push('');
-    out.push('| Snapshot | Browser | Avg diff | Max diff | Stdev | Per-run links |');
-    out.push('|---|---|---:|---:|---:|---|');
-    for (const e of regressions) {
-      const links = e.perRun.map((r) => `[${r.run}](${r.snapshotUrl})`).join(' ');
-      out.push(`| ${e.snapshot} | ${e.browser.display} | ${fmtPct(e.avg)} | ${fmtPct(e.max)} | ${e.stdev.toFixed(4)} | ${links} |`);
-    }
-    out.push('');
+    return out.join('\n');
   }
 
-  // -- Flaky (ordered by runs_with_diff desc then avg desc)
-  const flaky = section.entries
-    .filter((e) => e.classification === 'flaky')
-    .sort((a, b) => b.runsWithDiff - a.runsWithDiff || b.avg - a.avg);
-  out.push(`### 🟡 Flaky — diff in some runs, not others (likely site noise)`);
-  if (!flaky.length) {
-    out.push('_None._');
-    out.push('');
-  } else {
-    out.push('');
-    out.push('| Snapshot | Browser | Runs w/ diff | Max diff | Avg diff | Per-run links |');
-    out.push('|---|---|:---:|---:|---:|---|');
-    for (const e of flaky) {
-      const links = e.perRun
-        .map((r) => {
-          const marker = (r.diffRatio || 0) > MIN_DIFF_THRESHOLD ? `**[${r.run}]**` : `[${r.run}]`;
-          return `${marker}(${r.snapshotUrl})`;
-        })
-        .join(' ');
-      out.push(`| ${e.snapshot} | ${e.browser.display} | ${e.runsWithDiff}/${e.totalRuns} | ${fmtPct(e.max)} | ${fmtPct(e.avg)} | ${links} |`);
-    }
-    out.push('');
-  }
+  // Column headers: Snapshot | Browser | Run 1 | Run 2 | … | Run N
+  const runHeader = Array.from({ length: totalRuns }, (_, i) => `Run ${i + 1}`).join(' | ');
+  const runAlign = Array.from({ length: totalRuns }, () => '---:').join(' | ');
+  out.push(`| Snapshot | Browser | ${runHeader} |`);
+  out.push(`|---|---|${runAlign ? ` ${runAlign} |` : '|'}`);
 
-  // -- Stable (collapsed)
-  const stable = section.entries.filter((e) => e.classification === 'stable');
-  out.push(`### 🟢 Stable — no diffs in any run (${stable.length} rows)`);
-  if (stable.length) {
-    out.push('');
-    out.push('<details><summary>Show stable snapshots</summary>');
-    out.push('');
-    out.push('| Snapshot | Browser |');
-    out.push('|---|---|');
-    for (const e of stable) out.push(`| ${e.snapshot} | ${e.browser.display} |`);
-    out.push('');
-    out.push('</details>');
+  for (const e of rows) {
+    const perRunByIndex = new Map(e.perRun.map((r) => [r.run, r]));
+    const cells = Array.from({ length: totalRuns }, (_, i) => cellForRun(perRunByIndex, i + 1));
+    out.push(`| ${e.snapshot} | ${e.browser.display} | ${cells.join(' | ')} |`);
   }
   out.push('');
 
   return out.join('\n');
+}
+
+// Simple per-mode summary used by the top-of-report banner + console output.
+function modeSummary(section) {
+  if (section.empty) return { rowsWithDiff: 0, totalEntries: 0 };
+  const rowsWithDiff = section.entries.filter(hasAnyDiff).length;
+  return { rowsWithDiff, totalEntries: section.entries.length };
 }
 
 function renderMarkdown(sections, { cycleId, baselineCommit }) {
@@ -326,11 +316,8 @@ function renderMarkdown(sections, { cycleId, baselineCommit }) {
       banner.push(`- **JS=${s.mode}** — no data (${s.reason})`);
       continue;
     }
-    const c = summary(s);
-    const impact =
-      c.regression === 0 ? '✅ GREEN' :
-      c.regression <= 3 ? '🟠 MEDIUM' : '🔴 HIGH';
-    banner.push(`- **JS=${s.mode}** — 🔴 ${c.regression} regressions  |  🟡 ${c.flaky} flaky  |  🟢 ${c.stable} stable  →  ${impact}`);
+    const m = modeSummary(s);
+    banner.push(`- **JS=${s.mode}** — ${m.rowsWithDiff} (snapshot × browser) rows with any diff (of ${m.totalEntries})`);
   }
   banner.push('');
 
@@ -358,8 +345,8 @@ async function main() {
       console.log(`\n── JS=${s.mode} — EMPTY — ${s.reason}`);
       continue;
     }
-    const c = summary(s);
-    console.log(`\n── JS=${s.mode}: 🔴 ${c.regression}  🟡 ${c.flaky}  🟢 ${c.stable}  (${s.entries.length} total rows, ${s.buildIds.length} runs)`);
+    const m = modeSummary(s);
+    console.log(`\n── JS=${s.mode}: ${m.rowsWithDiff} rows with any diff (of ${m.totalEntries} combos, across ${s.buildIds.length} runs, ${s.erroredRuns.length} errored)`);
   }
   console.log('');
 
@@ -385,11 +372,13 @@ async function main() {
   fs.writeFileSync('diff-report.json', JSON.stringify(json, null, 2));
 
   // BK annotation — short banner + a pointer to the full artifact.
-  const totalRegressions = sections.reduce(
-    (n, s) => n + (s.empty ? 0 : summary(s).regression),
+  // Style picks up on total rows with any diff — informational at low counts,
+  // warning as they grow.
+  const totalRowsWithDiff = sections.reduce(
+    (n, s) => n + (s.empty ? 0 : modeSummary(s).rowsWithDiff),
     0
   );
-  const style = totalRegressions === 0 ? 'success' : totalRegressions <= 3 ? 'warning' : 'error';
+  const style = totalRowsWithDiff === 0 ? 'success' : totalRowsWithDiff <= 10 ? 'info' : 'warning';
   try {
     execSync(`buildkite-agent annotate --style ${style} --context percy-diffs`, {
       input: md,
