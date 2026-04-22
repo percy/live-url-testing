@@ -4,14 +4,19 @@
 #   ENCRYPTION_PASSWORD   decrypts configs/prod.js (holds PERCY_USER_TOKEN + team ID)
 #
 # Flow:
-#   Step 1  decrypt config, archive stale projects, create 2 fresh projects,
-#           emit write/read tokens as BK meta-data, re-encrypt config
-#   Step 2  Baselines (parallel, per JS mode)
-#   Step 3  Comparisons (parallel, per JS mode)
-#           -- browser upgrade step is TEMPORARILY SKIPPED until platform-ops
-#              ships an automation endpoint. Re-insert a `block:` step between
-#              step 2 and 3 to re-enable the manual pause.
-#   Step 4  Fetch per-snapshot diffs, write diff-report artifact, annotate BK
+#   Step 1  Decrypt config, archive stale projects, create 2 fresh projects,
+#           generate BASELINE_COMMIT (pins comparisons), emit all meta-data,
+#           re-encrypt config.
+#   Step 2  Baselines (parallel, per JS mode). PERCY_COMMIT=$BASELINE_COMMIT.
+#           -- browser upgrade step goes HERE when platform-ops ships the
+#              automation endpoint. Re-insert a `block:` step between step 2
+#              and the comparison fan-out to pause for the upgrade.
+#   Step 3  Comparisons fan-out: 5 runs × 2 JS modes = 10 agents, all parallel.
+#           Each comparison sets PERCY_TARGET_COMMIT=$BASELINE_COMMIT so every
+#           run compares against the same anchor, not the previous run.
+#           Per-run jitter (30s * RUN_INDEX) spreads start times for flake signal.
+#   Step 4  Aggregate 10 comparison builds, classify per-(snapshot,browser) as
+#           regression / flaky / stable, write Layer-2 grouped diff report.
 #
 # Every step delegates to a bin/*.sh script that handles its own Node setup
 # (nvm install 20) so BK YAML stays minimal and independent of agent-pre-cached
@@ -36,16 +41,17 @@ steps:
       - label: ":chromium: Baseline JS=enabled"
         agents:
           os: "linux"
-        command: "bash bin/run-percy-mode.sh enabled baseline"
+        command: "bash bin/run-percy-mode.sh enabled baseline 0"
       - label: ":chromium: Baseline JS=disabled"
         agents:
           os: "linux"
-        command: "bash bin/run-percy-mode.sh disabled baseline"
+        command: "bash bin/run-percy-mode.sh disabled baseline 0"
 
   - wait
 
   # Settle buffer: both baselines finalized on Percy; give the server 30s to
-  # fully settle rendering/processing caches before comparisons start uploading.
+  # fully settle rendering/processing caches before comparison builds start
+  # resolving PERCY_TARGET_COMMIT against them.
   # TODO: re-insert BLOCK step here when platform-ops browser-upgrade automation lands.
   # Shape:
   #   - block: ":hand: Ops: upgrade browser version in Percy projects"
@@ -58,22 +64,49 @@ steps:
 
   - wait
 
-  - group: ":chromium: Step 3 — Comparisons (parallel)"
+  - group: ":chromium: Step 3 — Comparisons fan-out (5 × 2 = 10 parallel)"
     key: "comparisons"
     depends_on: "baseline-settle"
     steps:
-      - label: ":chromium: Comparison JS=enabled"
-        agents:
-          os: "linux"
-        command: "bash bin/run-percy-mode.sh enabled comparison"
-      - label: ":chromium: Comparison JS=disabled"
-        agents:
-          os: "linux"
-        command: "bash bin/run-percy-mode.sh disabled comparison"
+      # Run 1
+      - label: ":chromium: Comparison 1 JS=enabled"
+        agents: { os: "linux" }
+        command: "bash bin/run-percy-mode.sh enabled comparison 1"
+      - label: ":chromium: Comparison 1 JS=disabled"
+        agents: { os: "linux" }
+        command: "bash bin/run-percy-mode.sh disabled comparison 1"
+      # Run 2
+      - label: ":chromium: Comparison 2 JS=enabled"
+        agents: { os: "linux" }
+        command: "bash bin/run-percy-mode.sh enabled comparison 2"
+      - label: ":chromium: Comparison 2 JS=disabled"
+        agents: { os: "linux" }
+        command: "bash bin/run-percy-mode.sh disabled comparison 2"
+      # Run 3
+      - label: ":chromium: Comparison 3 JS=enabled"
+        agents: { os: "linux" }
+        command: "bash bin/run-percy-mode.sh enabled comparison 3"
+      - label: ":chromium: Comparison 3 JS=disabled"
+        agents: { os: "linux" }
+        command: "bash bin/run-percy-mode.sh disabled comparison 3"
+      # Run 4
+      - label: ":chromium: Comparison 4 JS=enabled"
+        agents: { os: "linux" }
+        command: "bash bin/run-percy-mode.sh enabled comparison 4"
+      - label: ":chromium: Comparison 4 JS=disabled"
+        agents: { os: "linux" }
+        command: "bash bin/run-percy-mode.sh disabled comparison 4"
+      # Run 5
+      - label: ":chromium: Comparison 5 JS=enabled"
+        agents: { os: "linux" }
+        command: "bash bin/run-percy-mode.sh enabled comparison 5"
+      - label: ":chromium: Comparison 5 JS=disabled"
+        agents: { os: "linux" }
+        command: "bash bin/run-percy-mode.sh disabled comparison 5"
 
   - wait
 
-  - label: ":mag: Step 4 — Fetch diffs + annotate report"
+  - label: ":mag: Step 4 — Aggregate 5-run diff report"
     depends_on: "comparisons"
     agents:
       os: "linux"

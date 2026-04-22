@@ -100,6 +100,40 @@ async function listSnapshotsForBuild({ token, buildId, limit = 500 }) {
   });
 }
 
+// Returns [{ snapshot: {id,name}, comparison: {id, diffRatio, browserTargetId} }]
+// with comparisons sideloaded in one request. Replaces per-snapshot iteration
+// when browser-level granularity is needed (e.g. cycle report aggregating
+// (snapshot, browser) tuples across multiple comparison builds).
+async function listComparisonsForBuild({ token, buildId, limit = 500 }) {
+  const query = {
+    build_id: buildId,
+    'page[limit]': String(limit),
+    include: 'comparisons,comparisons.browser-target',
+  };
+  const r = await request('GET', `/api/v1/snapshots`, { token, query });
+  const cmpById = new Map();
+  for (const inc of r.included || []) {
+    if (inc.type === 'comparisons') {
+      cmpById.set(inc.id, {
+        id: inc.id,
+        diffRatio: inc.attributes['diff-ratio'],
+        aiDiffRatio: inc.attributes['ai-diff-ratio'],
+        browserTargetId: inc.relationships?.['browser-target']?.data?.id,
+      });
+    }
+  }
+  const rows = [];
+  for (const s of r.data) {
+    const snap = { id: s.id, name: s.attributes.name };
+    const cmpIds = (s.relationships?.comparisons?.data || []).map((c) => c.id);
+    for (const cid of cmpIds) {
+      const cmp = cmpById.get(cid);
+      if (cmp) rows.push({ snapshot: snap, comparison: cmp });
+    }
+  }
+  return rows;
+}
+
 async function getComparison({ token, comparisonId }) {
   const r = await request('GET', `/api/v1/comparisons/${comparisonId}`, { token });
   const a = r.data.attributes;
@@ -178,14 +212,57 @@ async function listProjectBrowsers({ userToken, teamId, projectSlug }) {
   });
 }
 
+// Returns a map keyed by browser-target id:
+//   { "77": { family: "Chrome", familyId: 2, version: "135.0.6778.85",
+//             major: "135", slug: "chrome-linux-135.0.6778.85", os: "linux",
+//             display: "Chrome 135" } }
+//
+// Must be called AFTER any browser upgrade so comparison builds get labelled
+// with the correct post-upgrade version. Resolved from one include= request
+// (no extra round-trips per family).
+async function getProjectBrowserTargets({ userToken, teamId, projectSlug }) {
+  const r = await request(
+    'GET',
+    `/api/v1/projects/${teamId}/${projectSlug}?include=project-browser-targets,browser-targets,browser-families`,
+    { token: userToken }
+  );
+  const included = r.included || [];
+  const familyNameById = new Map(
+    included
+      .filter((x) => x.type === 'browser-families')
+      .map((f) => [f.id, f.attributes?.name || f.attributes?.slug || `family_${f.id}`])
+  );
+  const out = {};
+  for (const bt of included.filter((x) => x.type === 'browser-targets')) {
+    const famId = bt.relationships?.['browser-family']?.data?.id;
+    const familyName = familyNameById.get(famId) || `family_${famId}`;
+    const slug = bt.attributes?.['browser-slug'] || '';
+    const version = bt.attributes?.['browser-version'] || '';
+    const major = (version.match(/^(\d+)/) || [])[1] || (slug.match(/-(\d+)\./) || [])[1] || '';
+    const os = bt.attributes?.['os-slug'] || '';
+    out[bt.id] = {
+      family: familyName,
+      familyId: famId,
+      version,
+      major,
+      slug,
+      os,
+      display: major ? `${familyName} ${major}` : familyName,
+    };
+  }
+  return out;
+}
+
 module.exports = {
   createProject,
   getProjectTokens,
   listBuildsForProject,
   listSnapshotsForBuild,
+  listComparisonsForBuild,
   getComparison,
   getBuild,
   addProjectBrowserFamily,
   removeProjectBrowser,
   listProjectBrowsers,
+  getProjectBrowserTargets,
 };
