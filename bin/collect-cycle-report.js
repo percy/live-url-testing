@@ -30,6 +30,7 @@ const { execSync } = require('node:child_process');
 const {
   listComparisonsForBuild,
   getProjectBrowserTargets,
+  getBuild,
 } = require('./lib/percy-api');
 
 const COMPARISON_RUN_COUNT = Number(process.env.COMPARISON_RUN_COUNT || 5);
@@ -115,9 +116,26 @@ async function collectMode(mode, { userToken, teamId }) {
     return { mode, empty: true, projectSlug, reason: 'no comparison build IDs in meta-data' };
   }
 
-  // Fetch snapshots+comparisons for every run in parallel.
-  const perRun = await Promise.all(
+  // Check each build's terminal state first — Percy backend can mark a build
+  // state=failed during processing even after our CLI finalize returned 0.
+  // Those builds' snapshot data is unreliable, so filter them from stats and
+  // show separately.
+  const checked = await Promise.all(
     buildIds.map(async ({ run, buildId }) => {
+      try {
+        const b = await getBuild({ token, buildId });
+        return { run, buildId, state: b.state, webUrl: b.webUrl };
+      } catch (e) {
+        return { run, buildId, state: 'unreachable', error: e.message };
+      }
+    })
+  );
+  const erroredRuns = checked.filter((c) => c.state !== 'finished');
+  const okRuns = checked.filter((c) => c.state === 'finished');
+
+  // Fetch snapshots+comparisons only for OK runs.
+  const perRun = await Promise.all(
+    okRuns.map(async ({ run, buildId }) => {
       const rows = await listComparisonsForBuild({ token, buildId });
       return { run, buildId, rows };
     })
@@ -184,6 +202,8 @@ async function collectMode(mode, { userToken, teamId }) {
     mode,
     projectSlug,
     buildIds,
+    okRuns,
+    erroredRuns,
     entries,
     browserTargetCount: Object.keys(browserTargets).length,
   };
@@ -204,21 +224,37 @@ function renderMarkdownForMode(section) {
     return [`## JS=${section.mode} — no data`, `_${section.reason}_`, ''].join('\n');
   }
   const byClass = summary(section);
-  const runCount = section.buildIds.length;
+  const totalRuns = section.buildIds.length;
+  const okCount = section.okRuns.length;
+  const erroredCount = section.erroredRuns.length;
   const out = [];
   out.push(`## JS=${section.mode}`);
   out.push('');
   out.push(`- Project: \`${section.projectSlug}\``);
-  out.push(`- Runs aggregated: **${runCount}** comparison build${runCount === 1 ? '' : 's'}`);
+  out.push(`- Runs aggregated: **${okCount} / ${totalRuns}** (${erroredCount} errored on Percy backend)`);
   out.push(`- Browsers: **${section.browserTargetCount}**`);
   out.push(`- 🔴 Regressions: **${byClass.regression}**  |  🟡 Flaky: **${byClass.flaky}**  |  🟢 Stable: **${byClass.stable}**`);
   out.push('');
+
+  // Errored runs block (Percy-side processing failures; shown separately since
+  // their snapshot data is not reliable enough to fold into classification).
+  if (erroredCount) {
+    out.push(`### ⚠️ Errored runs (${erroredCount})`);
+    out.push('');
+    out.push('| Run | Build | State | Notes |');
+    out.push('|---|---|---|---|');
+    for (const r of section.erroredRuns) {
+      const buildLink = r.webUrl ? `[${r.buildId}](${r.webUrl})` : r.buildId;
+      out.push(`| ${r.run} | ${buildLink} | \`${r.state}\` | ${r.error || 'Percy marked this build failed during server-side processing'} |`);
+    }
+    out.push('');
+  }
 
   // -- Regressions (worst first)
   const regressions = section.entries
     .filter((e) => e.classification === 'regression')
     .sort((a, b) => b.avg - a.avg);
-  out.push(`### 🔴 Regressions — diff in all ${runCount} runs (action needed)`);
+  out.push(`### 🔴 Regressions — diff in all ${okCount} aggregated runs (action needed)`);
   if (!regressions.length) {
     out.push('_None._');
     out.push('');
@@ -340,6 +376,8 @@ async function main() {
         mode: s.mode,
         projectSlug: s.projectSlug,
         runs: s.buildIds,
+        okRuns: s.okRuns,
+        erroredRuns: s.erroredRuns,
         entries: s.entries,
       };
     }),
