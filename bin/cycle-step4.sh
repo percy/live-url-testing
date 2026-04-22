@@ -15,7 +15,7 @@ if [ -s "${HOME}/.nvm/nvm.sh" ]; then
   nvm use 20
 fi
 
-# Cross-agent settle buffer: both comparison builds just finalized on Percy;
+# Cross-agent settle buffer: 10 comparison builds just finalized on Percy;
 # give the server 10s to fully settle snapshot/comparison data before we
 # read per-snapshot diffs.
 echo "=== Settling 10s before diff check ==="
@@ -26,4 +26,15 @@ sleep 10
 # consistent if we add any).
 npm ci
 
+# Decrypt configs/<PROFILE>.js so collect-cycle-report.js can read
+# PERCY_USER_TOKEN + PERCY_TEAM_ID to fetch the (potentially post-upgrade)
+# browser-target map. ENCRYPTION_PASSWORD is a pipeline-level env var.
+npm run decrypt:config
+
+# Run the report. It reads 5 comparison build IDs per JS mode from meta-data,
+# aggregates per (snapshot, browser-target), classifies regression/flaky/stable,
+# writes diff-report.md + diff-report.json, and annotates the BK build.
 node bin/collect-cycle-report.js
+
+# Re-encrypt so the decrypted form doesn't end up in any residual agent cache.
+npm run encrypt:config

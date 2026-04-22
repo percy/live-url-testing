@@ -36,6 +36,14 @@ export CYCLE_ID="${BUILDKITE_BUILD_NUMBER}-$(date +%Y%m%d)"
 echo "CYCLE_ID=${CYCLE_ID}"
 buildkite-agent meta-data set CYCLE_ID "${CYCLE_ID}"
 
+# Synthetic 40-char SHA used to pin every comparison build in this cycle to the
+# same baseline via PERCY_TARGET_COMMIT. Must match between the baseline's
+# PERCY_COMMIT and every comparison's PERCY_TARGET_COMMIT; Percy treats the
+# value as opaque but format-validates for SHA shape.
+BASELINE_COMMIT=$(printf 'baseline-cycle-%s' "${CYCLE_ID}" | shasum | awk '{print $1}')
+echo "BASELINE_COMMIT=${BASELINE_COMMIT}"
+buildkite-agent meta-data set BASELINE_COMMIT "${BASELINE_COMMIT}"
+
 npm ci
 
 echo ""
