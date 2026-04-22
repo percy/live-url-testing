@@ -101,36 +101,43 @@ async function listSnapshotsForBuild({ token, buildId, limit = 500 }) {
 }
 
 // Returns [{ snapshot: {id,name}, comparison: {id, diffRatio, browserTargetId} }]
-// with comparisons sideloaded in one request. Replaces per-snapshot iteration
-// when browser-level granularity is needed (e.g. cycle report aggregating
-// (snapshot, browser) tuples across multiple comparison builds).
-async function listComparisonsForBuild({ token, buildId, limit = 500 }) {
-  const query = {
-    build_id: buildId,
-    'page[limit]': String(limit),
-    include: 'comparisons,comparisons.browser-target',
-  };
-  const r = await request('GET', `/api/v1/snapshots`, { token, query });
-  const cmpById = new Map();
-  for (const inc of r.included || []) {
-    if (inc.type === 'comparisons') {
-      cmpById.set(inc.id, {
-        id: inc.id,
-        diffRatio: inc.attributes['diff-ratio'],
-        aiDiffRatio: inc.attributes['ai-diff-ratio'],
-        browserTargetId: inc.relationships?.['browser-target']?.data?.id,
-      });
+// for every (snapshot × browser-target) on a build. Implemented as:
+//   1. One /snapshots?build_id=X call to list snapshots + their comparison IDs
+//   2. A parallel fan-out of /comparisons/:id calls to get per-comparison
+//      attributes + browser-target relationship
+// Earlier attempt using /snapshots?include=comparisons,comparisons.browser-target
+// returned data with empty "included" — Percy's /snapshots endpoint does not
+// sideload comparisons via JSON:API include. The per-id fetch is slower (100
+// calls per build) but guaranteed to work.
+async function listComparisonsForBuild({ token, buildId, limit = 500, concurrency = 20 }) {
+  const snapshots = await listSnapshotsForBuild({ token, buildId, limit });
+
+  // Flatten into { snapshot, comparisonId } tasks.
+  const tasks = [];
+  for (const s of snapshots) {
+    for (const cid of s.comparisonIds || []) {
+      tasks.push({ snapshot: { id: s.id, name: s.name }, comparisonId: cid });
     }
   }
+
+  // Bounded-concurrency fan-out: run `concurrency` tasks in parallel.
   const rows = [];
-  for (const s of r.data) {
-    const snap = { id: s.id, name: s.attributes.name };
-    const cmpIds = (s.relationships?.comparisons?.data || []).map((c) => c.id);
-    for (const cid of cmpIds) {
-      const cmp = cmpById.get(cid);
-      if (cmp) rows.push({ snapshot: snap, comparison: cmp });
+  let cursor = 0;
+  async function worker() {
+    while (cursor < tasks.length) {
+      const idx = cursor++;
+      const t = tasks[idx];
+      try {
+        const cmp = await getComparison({ token, comparisonId: t.comparisonId });
+        rows.push({ snapshot: t.snapshot, comparison: cmp });
+      } catch (e) {
+        // Skip individual comparison failures — don't abort the whole aggregation.
+        // The missing row will just not appear in the report.
+        console.error(`[percy-api] getComparison(${t.comparisonId}) failed: ${e.message}`);
+      }
     }
   }
+  await Promise.all(Array.from({ length: Math.min(concurrency, tasks.length) }, worker));
   return rows;
 }
 
@@ -144,6 +151,7 @@ async function getComparison({ token, comparisonId }) {
     headImageUrl: a['head-image-url'],
     baseImageUrl: a['base-image-url'],
     diffImageUrl: a['diff-image-url'],
+    browserTargetId: r.data.relationships?.['browser-target']?.data?.id,
   };
 }
 
