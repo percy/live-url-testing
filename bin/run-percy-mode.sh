@@ -25,8 +25,10 @@
 #   - runs `npx percy exec -- playwright test` against 25 URLs
 #   - tees output to .percy-run-$JS-$PHASE[-$RUN_INDEX].log
 #   - extracts Percy build ID, sets BK meta-data
-#       PERCY_BUILD_ID_<UPPER_JS>_BASELINE                      (phase=baseline)
-#       PERCY_BUILD_ID_<UPPER_JS>_COMPARISON_<RUN_INDEX>        (phase=comparison)
+#       PERCY_BUILD_ID_JS_<UPPER_JS>_BASELINE                      (phase=baseline)
+#       PERCY_BUILD_ID_JS_<UPPER_JS>_COMPARISON_<RUN_INDEX>        (phase=comparison)
+#     (matches the PERCY_TOKEN_JS_<MODE> / PERCY_PROJECT_SLUG_JS_<MODE> convention
+#     set by create-projects.js — all per-mode meta-data keys carry a JS_ infix.)
 #   - waits for Percy build to finalize (state=finished) before exiting
 
 set -euo pipefail
@@ -65,7 +67,7 @@ export PERCY_BRANCH="master"
 case "$PHASE" in
   baseline)
     export PERCY_COMMIT="$BASELINE_COMMIT"
-    META_KEY="PERCY_BUILD_ID_${UPPER_JS}_BASELINE"
+    META_KEY="PERCY_BUILD_ID_JS_${UPPER_JS}_BASELINE"
     LOG=".percy-run-${JS}-${PHASE}.log"
     ;;
   comparison)
@@ -80,7 +82,7 @@ case "$PHASE" in
       | shasum | awk '{print $1}')
     export PERCY_COMMIT="$PERCY_COMMIT_VALUE"
     export PERCY_TARGET_COMMIT="$BASELINE_COMMIT"
-    META_KEY="PERCY_BUILD_ID_${UPPER_JS}_COMPARISON_${RUN_INDEX}"
+    META_KEY="PERCY_BUILD_ID_JS_${UPPER_JS}_COMPARISON_${RUN_INDEX}"
     LOG=".percy-run-${JS}-${PHASE}-${RUN_INDEX}.log"
 
     # Temporal spread across parallel comparison runs. Two goals:
