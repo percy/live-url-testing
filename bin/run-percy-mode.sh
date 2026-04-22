@@ -83,10 +83,19 @@ case "$PHASE" in
     META_KEY="PERCY_BUILD_ID_${UPPER_JS}_COMPARISON_${RUN_INDEX}"
     LOG=".percy-run-${JS}-${PHASE}-${RUN_INDEX}.log"
 
-    # Temporal spread across parallel comparison runs so all 5 don't hit each
-    # live URL at the same instant — preserves flake signal for the report.
-    JITTER=$(( RUN_INDEX * 30 ))
-    echo "=== Jitter sleep ${JITTER}s (run ${RUN_INDEX} of ${PHASE}) ==="
+    # Temporal spread across parallel comparison runs. Two goals:
+    #   1. Preserve flake signal on live URLs (temporal variance across runs)
+    #   2. Avoid saturating Percy's server-side render queue when JS=enabled
+    #      (JS=enabled renders are ~10-30s per snapshot × 25 × browsers ≈ 100
+    #      heavy tasks per build; 5 concurrent JS=enabled builds caused Percy
+    #      backend to fail 2/5 runs in cycle #133). JS=disabled renders are
+    #      trivial on the server, so keep the tight 30s spread there.
+    if [ "$JS" = "enabled" ]; then
+      JITTER=$(( RUN_INDEX * 90 ))
+    else
+      JITTER=$(( RUN_INDEX * 30 ))
+    fi
+    echo "=== Jitter sleep ${JITTER}s (run ${RUN_INDEX} of ${PHASE}, JS=${JS}) ==="
     sleep "$JITTER"
     ;;
   *)

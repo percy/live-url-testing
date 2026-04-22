@@ -64,6 +64,10 @@ steps:
 
   - wait
 
+  # Every comparison job is marked soft_fail: true so a Percy backend failure on
+  # any single build (rendering queue timeout, internal processing error) does
+  # not take down the whole cycle. Step 4 aggregates whichever builds succeeded
+  # and shows the errored ones in a separate section of the report.
   - group: ":chromium: Step 3 — Comparisons fan-out (5 × 2 = 10 parallel)"
     key: "comparisons"
     depends_on: "baseline-settle"
@@ -72,42 +76,54 @@ steps:
       - label: ":chromium: Comparison 1 JS=enabled"
         agents: { os: "linux" }
         command: "bash bin/run-percy-mode.sh enabled comparison 1"
+        soft_fail: true
       - label: ":chromium: Comparison 1 JS=disabled"
         agents: { os: "linux" }
         command: "bash bin/run-percy-mode.sh disabled comparison 1"
+        soft_fail: true
       # Run 2
       - label: ":chromium: Comparison 2 JS=enabled"
         agents: { os: "linux" }
         command: "bash bin/run-percy-mode.sh enabled comparison 2"
+        soft_fail: true
       - label: ":chromium: Comparison 2 JS=disabled"
         agents: { os: "linux" }
         command: "bash bin/run-percy-mode.sh disabled comparison 2"
+        soft_fail: true
       # Run 3
       - label: ":chromium: Comparison 3 JS=enabled"
         agents: { os: "linux" }
         command: "bash bin/run-percy-mode.sh enabled comparison 3"
+        soft_fail: true
       - label: ":chromium: Comparison 3 JS=disabled"
         agents: { os: "linux" }
         command: "bash bin/run-percy-mode.sh disabled comparison 3"
+        soft_fail: true
       # Run 4
       - label: ":chromium: Comparison 4 JS=enabled"
         agents: { os: "linux" }
         command: "bash bin/run-percy-mode.sh enabled comparison 4"
+        soft_fail: true
       - label: ":chromium: Comparison 4 JS=disabled"
         agents: { os: "linux" }
         command: "bash bin/run-percy-mode.sh disabled comparison 4"
+        soft_fail: true
       # Run 5
       - label: ":chromium: Comparison 5 JS=enabled"
         agents: { os: "linux" }
         command: "bash bin/run-percy-mode.sh enabled comparison 5"
+        soft_fail: true
       - label: ":chromium: Comparison 5 JS=disabled"
         agents: { os: "linux" }
         command: "bash bin/run-percy-mode.sh disabled comparison 5"
+        soft_fail: true
 
-  - wait
+  - wait: ~
+    continue_on_failure: true
 
   - label: ":mag: Step 4 — Aggregate 5-run diff report"
     depends_on: "comparisons"
+    allow_dependency_failure: true
     agents:
       os: "linux"
     command: "bash bin/cycle-step4.sh"
