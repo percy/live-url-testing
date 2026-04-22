@@ -29,7 +29,6 @@ const fs = require('node:fs');
 const { execSync } = require('node:child_process');
 const {
   listComparisonsForBuild,
-  getProjectBrowserTargets,
   getBuild,
 } = require('./lib/percy-api');
 
@@ -80,31 +79,11 @@ function snapshotUrlFor(buildWebUrl, snapshotId) {
   return `${buildWebUrl.replace(/\/$/, '')}/snapshots/${snapshotId}`;
 }
 
-function classify(runsWithDiff, totalRuns) {
-  if (runsWithDiff === 0) return 'stable';
-  if (runsWithDiff === totalRuns) return 'regression';
-  return 'flaky';
-}
 
-function stats(values) {
-  if (!values.length) return { avg: 0, max: 0, stdev: 0 };
-  const avg = values.reduce((a, b) => a + b, 0) / values.length;
-  const max = Math.max(...values);
-  const variance = values.reduce((sum, v) => sum + (v - avg) ** 2, 0) / values.length;
-  return { avg, max, stdev: Math.sqrt(variance) };
-}
-
-async function collectMode(mode, { userToken, teamId }) {
+async function collectMode(mode) {
   const suffix = mode.toUpperCase();
   const token = meta(`PERCY_TOKEN_JS_${suffix}`);
   const projectSlug = meta(`PERCY_PROJECT_SLUG_JS_${suffix}`);
-
-  // Fresh browser-target map (captures any post-baseline browser upgrade).
-  const browserTargets = await getProjectBrowserTargets({
-    userToken,
-    teamId,
-    projectSlug: projectSlugTail(projectSlug),
-  });
 
   // Resolve the N comparison build IDs that were uploaded this cycle.
   const buildIds = [];
@@ -145,24 +124,32 @@ async function collectMode(mode, { userToken, teamId }) {
   // have the build-number client-side, but Percy accepts the id form too.
   const buildWebUrl = (buildId) => `https://percy.io/${projectSlug}/builds/${buildId}`;
 
-  // Aggregate key:  <snapshotName>||<browserTargetId>
+  // Aggregate key:  <snapshotName> || <browserId> || <width>
+  // (width included because Percy takes one comparison per responsive width, so
+  // a diff at 375px vs 1280px tells different stories and should be distinct rows.)
   const agg = new Map();
-  const nowEmpty = () => ({
-    snapshot: null,      // { name, ids: Map<run, snapshotId> }
-    browser: null,       // { family, major, version, slug, os, display }
-    perRun: [],          // [{ run, buildId, snapshotId, diffRatio, snapshotUrl }]
-  });
 
   for (const { run, buildId, rows } of perRun) {
     for (const { snapshot, comparison } of rows) {
-      const btId = comparison.browserTargetId;
-      if (!btId) continue; // shouldn't happen, but skip rather than crash
-      const key = `${snapshot.name}||${btId}`;
+      const browserId = comparison.browserId;
+      const width = comparison.width;
+      if (!browserId) continue;
+      const key = `${snapshot.name}||${browserId}||${width}`;
       if (!agg.has(key)) {
-        const entry = nowEmpty();
-        entry.snapshot = { name: snapshot.name };
-        entry.browser = browserTargets[btId] || { display: `unknown(${btId})`, family: 'unknown', major: '', version: '', slug: '', os: '' };
-        agg.set(key, entry);
+        const display = width
+          ? `${comparison.browserDisplay} @ ${width}px`
+          : comparison.browserDisplay;
+        agg.set(key, {
+          snapshot: { name: snapshot.name },
+          browser: {
+            display,
+            family: comparison.browserFamily,
+            version: comparison.browserVersion,
+            id: browserId,
+            width,
+          },
+          perRun: [],
+        });
       }
       const entry = agg.get(key);
       entry.perRun.push({
@@ -175,28 +162,24 @@ async function collectMode(mode, { userToken, teamId }) {
     }
   }
 
-  // Finalize entries: classify + stats.
+  // Finalize entries. Only perRun is used by the flat renderer; keep totalRuns
+  // + runsWithDiff for JSON consumers that may want a quick summary.
   const entries = [];
   for (const entry of agg.values()) {
-    const diffValues = entry.perRun.filter((r) => (r.diffRatio || 0) > MIN_DIFF_THRESHOLD).map((r) => r.diffRatio);
-    const totalRuns = entry.perRun.length;
-    const runsWithDiff = diffValues.length;
-    const s = stats(entry.perRun.map((r) => r.diffRatio || 0));
+    const runsWithDiff = entry.perRun.filter((r) => (r.diffRatio || 0) > MIN_DIFF_THRESHOLD).length;
     entries.push({
       snapshot: entry.snapshot.name,
       browser: entry.browser,
-      totalRuns,
+      totalRuns: entry.perRun.length,
       runsWithDiff,
-      classification: classify(runsWithDiff, totalRuns),
-      avg: s.avg,
-      max: s.max,
-      stdev: s.stdev,
       perRun: entry.perRun.sort((a, b) => a.run - b.run),
     });
   }
 
-  // Sort: worst first inside each category is handled at render time.
   entries.sort((a, b) => a.snapshot.localeCompare(b.snapshot) || a.browser.display.localeCompare(b.browser.display));
+
+  // Count unique browsers across all OK comparison data (for the per-mode header).
+  const browserDisplaysSeen = new Set(entries.map((e) => e.browser.display));
 
   return {
     mode,
@@ -205,7 +188,7 @@ async function collectMode(mode, { userToken, teamId }) {
     okRuns,
     erroredRuns,
     entries,
-    browserTargetCount: Object.keys(browserTargets).length,
+    browserTargetCount: browserDisplaysSeen.size,
   };
 }
 
@@ -325,15 +308,18 @@ function renderMarkdown(sections, { cycleId, baselineCommit }) {
 }
 
 async function main() {
-  const cfg = loadConfig();
-  const { PERCY_USER_TOKEN: userToken, PERCY_TEAM_ID: teamId } = cfg;
+  // Config is loaded only to ensure PERCY_BASE_URL is set; user-token + team-id
+  // are no longer needed by the report (browser metadata now rides on each
+  // comparison via ?include=browser,browser.browser-family). Keep the call for
+  // the side-effect of setting PERCY_BASE_URL in env for percy-api.js.
+  loadConfig();
 
   const cycleId = meta('CYCLE_ID');
   const baselineCommit = meta('BASELINE_COMMIT');
 
   const [enabled, disabled] = await Promise.all([
-    collectMode('enabled', { userToken, teamId }),
-    collectMode('disabled', { userToken, teamId }),
+    collectMode('enabled'),
+    collectMode('disabled'),
   ]);
   const sections = [enabled, disabled];
 

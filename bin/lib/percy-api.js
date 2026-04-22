@@ -142,8 +142,19 @@ async function listComparisonsForBuild({ token, buildId, limit = 500, concurrenc
 }
 
 async function getComparison({ token, comparisonId }) {
-  const r = await request('GET', `/api/v1/comparisons/${comparisonId}`, { token });
+  // Include browser + browser-family sideload so each comparison row gets
+  // family name (e.g. "Chrome") and version ("135.0.6778.85") in one request.
+  // Percy's comparison resource links to a `browser` (not a browser-target),
+  // so the browser-target-based lookup does not apply here.
+  const query = { include: 'browser,browser.browser-family' };
+  const r = await request('GET', `/api/v1/comparisons/${comparisonId}`, { token, query });
   const a = r.data.attributes;
+  const included = r.included || [];
+  const browserRes = included.find((x) => x.type === 'browsers');
+  const familyRes = included.find((x) => x.type === 'browser-families');
+  const family = familyRes?.attributes?.name || 'unknown';
+  const version = browserRes?.attributes?.version || '';
+  const major = (version.match(/^(\d+)/) || [])[1] || version;
   return {
     id: r.data.id,
     diffRatio: a['diff-ratio'],
@@ -151,7 +162,11 @@ async function getComparison({ token, comparisonId }) {
     headImageUrl: a['head-image-url'],
     baseImageUrl: a['base-image-url'],
     diffImageUrl: a['diff-image-url'],
-    browserTargetId: r.data.relationships?.['browser-target']?.data?.id,
+    width: a.width,
+    browserId: r.data.relationships?.browser?.data?.id,
+    browserFamily: family,
+    browserVersion: version,
+    browserDisplay: major ? `${family} ${major}` : family,
   };
 }
 
